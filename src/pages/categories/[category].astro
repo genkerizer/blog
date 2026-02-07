@@ -1,0 +1,52 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import BlogCard from '../../components/BlogCard.astro';
+import { getCollection } from 'astro:content';
+import '../../styles/global.css';
+
+export async function getStaticPaths() {
+  const allPosts = await getCollection('blog', ({ data }) => !data.draft);
+  const allCategories = [...new Set(allPosts.map(post => post.data.category))];
+  
+  return allCategories.map((category) => ({
+    params: { category: category.toLowerCase().replace(' ', '-') },
+    props: {
+      category,
+      posts: allPosts.filter(post => post.data.category === category)
+        .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf())
+    }
+  }));
+}
+
+const { category, posts } = Astro.props;
+---
+
+<BaseLayout title={`${category} | AI Blog`} description={`Bài viết trong danh mục ${category}`}>
+  <Header />
+  
+  <main class="flex-1">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div class="mb-12">
+        <a href="/blog/categories/" class="text-primary-600 dark:text-primary-400 hover:underline mb-4 inline-block">
+          ← Tất cả danh mục
+        </a>
+        <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-4">
+          {category}
+        </h1>
+        <p class="text-xl text-gray-600 dark:text-gray-400">
+          {posts.length} bài viết
+        </p>
+      </div>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {posts.map((post) => (
+          <BlogCard post={post} />
+        ))}
+      </div>
+    </div>
+  </main>
+  
+  <Footer />
+</BaseLayout>

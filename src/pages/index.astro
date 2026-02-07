@@ -1,0 +1,147 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import BlogCard from '../components/BlogCard.astro';
+import { getCollection } from 'astro:content';
+import '../styles/global.css';
+
+const allPosts = await getCollection('blog', ({ data }) => !data.draft);
+const sortedPosts = allPosts.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+const recentPosts = sortedPosts.slice(0, 6);
+---
+
+<BaseLayout title="AI Blog - Kiến thức về Trí tuệ nhân tạo" description="Blog cá nhân chia sẻ kiến thức về AI, Machine Learning và các công nghệ mới nhất">
+  <Header />
+  
+  <main class="flex-1">
+    <!-- Hero Section -->
+    <section class="relative overflow-hidden bg-gradient-to-br from-primary-50 via-white to-primary-100 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 py-20 lg:py-32">
+      <div class="absolute inset-0 bg-grid-pattern opacity-5"></div>
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+        <div class="text-center max-w-3xl mx-auto">
+          <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 dark:text-white mb-6">
+            Khám phá thế giới
+            <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-primary-400">
+              Trí tuệ nhân tạo
+            </span>
+          </h1>
+          <p class="text-xl text-gray-600 dark:text-gray-400 mb-8 leading-relaxed">
+            Chia sẻ kiến thức về AI, Machine Learning, Deep Learning và các công nghệ tiên tiến nhất. 
+            Từ lý thuyết đến thực hành, từ cơ bản đến nâng cao.
+          </p>
+          <div class="flex flex-col sm:flex-row gap-4 justify-center">
+            <a 
+              href="/blog/blog/" 
+              class="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-medium transition-colors shadow-lg shadow-primary-600/25"
+            >
+              Xem tất cả bài viết
+              <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
+            </a>
+            <a 
+              href="/blog/tags/" 
+              class="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-medium border border-gray-200 dark:border-gray-700 hover:border-primary-300 dark:hover:border-primary-600 transition-colors"
+            >
+              Khám phá theo chủ đề
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+    
+    <!-- Featured Posts -->
+    <section class="py-16 lg:py-24">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center justify-between mb-12">
+          <div>
+            <h2 class="text-3xl font-bold text-gray-900 dark:text-white">
+              Bài viết mới nhất
+            </h2>
+            <p class="mt-2 text-gray-600 dark:text-gray-400">
+              Cập nhật kiến thức mới nhất về AI
+            </p>
+          </div>
+          <a 
+            href="/blog/blog/"
+            class="hidden sm:inline-flex items-center text-primary-600 dark:text-primary-400 hover:underline font-medium"
+          >
+            Xem tất cả
+            <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </a>
+        </div>
+        
+        {recentPosts.length > 0 ? (
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {recentPosts.map((post) => (
+              <BlogCard post={post} />
+            ))}
+          </div>
+        ) : (
+          <div class="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-xl">
+            <p class="text-gray-600 dark:text-gray-400">
+              Chưa có bài viết nào. Hãy thêm bài viết đầu tiên!
+            </p>
+          </div>
+        )}
+        
+        <div class="mt-12 text-center sm:hidden">
+          <a 
+            href="/blog/blog/"
+            class="inline-flex items-center text-primary-600 dark:text-primary-400 hover:underline font-medium"
+          >
+            Xem tất cả bài viết
+            <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </a>
+        </div>
+      </div>
+    </section>
+    
+    <!-- Categories Section -->
+    <section class="py-16 bg-gray-50 dark:bg-gray-800/50">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12">
+          <h2 class="text-3xl font-bold text-gray-900 dark:text-white">
+            Danh mục chủ đề
+          </h2>
+          <p class="mt-2 text-gray-600 dark:text-gray-400">
+            Khám phá các lĩnh vực trong AI
+          </p>
+        </div>
+        
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { name: 'Machine Learning', icon: '🤖', desc: 'Học máy cơ bản đến nâng cao' },
+            { name: 'Deep Learning', icon: '🧠', desc: 'Neural Networks & Frameworks' },
+            { name: 'NLP', icon: '💬', desc: 'Xử lý ngôn ngữ tự nhiên' },
+            { name: 'Computer Vision', icon: '👁️', desc: 'Thị giác máy tính' },
+          ].map((cat) => (
+            <a 
+              href={`/blog/categories/${cat.name.toLowerCase().replace(' ', '-')}/`}
+              class="p-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-lg transition-all text-center group"
+            >
+              <span class="text-4xl mb-4 block">{cat.icon}</span>
+              <h3 class="font-semibold text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                {cat.name}
+              </h3>
+              <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{cat.desc}</p>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  </main>
+  
+  <Footer />
+</BaseLayout>
+
+<style>
+  .bg-grid-pattern {
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+</style>

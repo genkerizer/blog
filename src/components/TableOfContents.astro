@@ -1,0 +1,61 @@
+---
+interface Props {
+  headings: { depth: number; slug: string; text: string }[];
+}
+
+const { headings } = Astro.props;
+const filteredHeadings = headings.filter(h => h.depth === 2 || h.depth === 3);
+---
+
+{filteredHeadings.length > 0 && (
+  <nav class="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl">
+    <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider mb-4">
+      Mục lục
+    </h2>
+    <ul class="space-y-1 text-sm">
+      {filteredHeadings.map((heading) => (
+        <li>
+          <a 
+            href={`#${heading.slug}`}
+            class={`toc-link ${heading.depth === 3 ? 'toc-h3' : ''}`}
+            data-heading={heading.slug}
+          >
+            {heading.text}
+          </a>
+        </li>
+      ))}
+    </ul>
+  </nav>
+)}
+
+<script>
+  const headingLinks = document.querySelectorAll('.toc-link');
+  const headingElements = Array.from(headingLinks).map(link => {
+    const slug = link.getAttribute('data-heading');
+    return document.getElementById(slug || '');
+  }).filter(Boolean);
+  
+  function updateActiveHeading() {
+    const scrollY = window.scrollY;
+    
+    let currentHeading = headingElements[0];
+    
+    for (const heading of headingElements) {
+      if (heading && heading.offsetTop <= scrollY + 100) {
+        currentHeading = heading;
+      }
+    }
+    
+    headingLinks.forEach(link => {
+      const slug = link.getAttribute('data-heading');
+      if (currentHeading && slug === currentHeading.id) {
+        link.classList.add('active');
+      } else {
+        link.classList.remove('active');
+      }
+    });
+  }
+  
+  window.addEventListener('scroll', updateActiveHeading, { passive: true });
+  updateActiveHeading();
+</script>

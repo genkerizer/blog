@@ -1,0 +1,190 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import TableOfContents from '../components/TableOfContents.astro';
+import ReadingTime from '../components/ReadingTime.astro';
+import TagList from '../components/TagList.astro';
+import Giscus from '../components/Giscus.astro';
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description?: string;
+  pubDate: Date;
+  updatedDate?: Date;
+  author?: string;
+  image?: string;
+  tags?: string[];
+  category?: string;
+  headings?: { depth: number; slug: string; text: string }[];
+  minutesRead?: string;
+}
+
+const { 
+  title, 
+  description, 
+  pubDate, 
+  updatedDate, 
+  author = 'Author',
+  image,
+  tags = [],
+  category,
+  headings = [],
+  minutesRead
+} = Astro.props;
+
+const formattedPubDate = new Date(pubDate).toLocaleDateString('vi-VN', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric'
+});
+
+const formattedUpdatedDate = updatedDate ? new Date(updatedDate).toLocaleDateString('vi-VN', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric'
+}) : null;
+---
+
+<BaseLayout title={title} description={description} image={image}>
+  <Header />
+  
+  <main class="flex-1">
+    <article class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div class="lg:grid lg:grid-cols-[1fr_280px] lg:gap-12">
+        <!-- Main Content -->
+        <div class="max-w-3xl">
+          <!-- Article Header -->
+          <header class="mb-8">
+            {category && (
+              <a href={`/blog/categories/${category.toLowerCase()}`} class="category mb-4 inline-block">
+                {category}
+              </a>
+            )}
+            
+            <h1 class="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-4 leading-tight">
+              {title}
+            </h1>
+            
+            {description && (
+              <p class="text-xl text-gray-600 dark:text-gray-400 mb-6">
+                {description}
+              </p>
+            )}
+            
+            <div class="flex flex-wrap items-center gap-4 text-sm text-gray-500 dark:text-gray-400 pb-6 border-b border-gray-200 dark:border-gray-700">
+              <span class="flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                {author}
+              </span>
+              
+              <span class="flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {formattedPubDate}
+              </span>
+              
+              {formattedUpdatedDate && (
+                <span class="flex items-center gap-2">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Cập nhật: {formattedUpdatedDate}
+                </span>
+              )}
+              
+              {minutesRead && (
+                <ReadingTime minutes={minutesRead} />
+              )}
+            </div>
+            
+            {tags.length > 0 && (
+              <div class="mt-4">
+                <TagList tags={tags} />
+              </div>
+            )}
+          </header>
+
+          {/* Featured Image */}
+          {image && (
+            <img 
+              src={image} 
+              alt={title}
+              class="w-full h-auto rounded-xl mb-8 shadow-lg"
+            />
+          )}
+          
+          <!-- Article Content -->
+          <div class="prose prose-lg dark:prose-dark max-w-none">
+            <slot />
+          </div>
+          
+          <!-- Comments -->
+          <section class="mt-16 pt-8 border-t border-gray-200 dark:border-gray-700">
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Bình luận</h2>
+            <Giscus />
+          </section>
+        </div>
+        
+        <!-- Sidebar - Table of Contents -->
+        {headings.length > 0 && (
+          <aside class="hidden lg:block">
+            <div class="sticky top-24">
+              <TableOfContents headings={headings} />
+            </div>
+          </aside>
+        )}
+      </div>
+    </article>
+  </main>
+  
+  <Footer />
+</BaseLayout>
+
+<script>
+  // Add copy buttons to code blocks
+  document.querySelectorAll('pre').forEach((pre) => {
+    const button = document.createElement('button');
+    button.className = 'copy-button';
+    button.setAttribute('aria-label', 'Copy code');
+    button.innerHTML = `
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+      </svg>
+      <span class="copy-text">Copy</span>
+    `;
+    
+    button.addEventListener('click', async () => {
+      const code = pre.querySelector('code');
+      if (code) {
+        await navigator.clipboard.writeText(code.textContent || '');
+        button.classList.add('copied');
+        button.innerHTML = `
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <span class="copy-text">Copied!</span>
+        `;
+        
+        setTimeout(() => {
+          button.classList.remove('copied');
+          button.innerHTML = `
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <span class="copy-text">Copy</span>
+          `;
+        }, 2000);
+      }
+    });
+    
+    pre.style.position = 'relative';
+    pre.appendChild(button);
+  });
+</script>

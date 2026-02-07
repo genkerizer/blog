@@ -1,0 +1,49 @@
+---
+// Giscus Comments Component
+// Configure your Giscus settings at https://giscus.app
+---
+
+<div id="giscus-container">
+  <script
+    src="https://giscus.app/client.js"
+    data-repo="hopny/blog"
+    data-repo-id=""
+    data-category="Announcements"
+    data-category-id=""
+    data-mapping="pathname"
+    data-strict="0"
+    data-reactions-enabled="1"
+    data-emit-metadata="0"
+    data-input-position="top"
+    data-theme="preferred_color_scheme"
+    data-lang="vi"
+    data-loading="lazy"
+    crossorigin="anonymous"
+    async
+  ></script>
+</div>
+
+<script>
+  // Update Giscus theme when dark mode changes
+  const observer = new MutationObserver(() => {
+    const iframe = document.querySelector<HTMLIFrameElement>('iframe.giscus-frame');
+    if (iframe) {
+      const theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+      iframe.contentWindow?.postMessage(
+        { giscus: { setConfig: { theme } } },
+        'https://giscus.app'
+      );
+    }
+  });
+  
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['class']
+  });
+</script>
+
+<noscript>
+  <p class="text-gray-500 dark:text-gray-400">
+    Bật JavaScript để xem bình luận.
+  </p>
+</noscript>

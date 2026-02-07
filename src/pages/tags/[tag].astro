@@ -1,0 +1,53 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import BlogCard from '../../components/BlogCard.astro';
+import { getCollection } from 'astro:content';
+import '../../styles/global.css';
+
+export async function getStaticPaths() {
+  const allPosts = await getCollection('blog', ({ data }) => !data.draft);
+  const allTags = [...new Set(allPosts.flatMap(post => post.data.tags))];
+  
+  return allTags.map((tag) => ({
+    params: { tag: tag.toLowerCase() },
+    props: {
+      tag,
+      posts: allPosts.filter(post => 
+        post.data.tags.map((t: string) => t.toLowerCase()).includes(tag.toLowerCase())
+      ).sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf())
+    }
+  }));
+}
+
+const { tag, posts } = Astro.props;
+---
+
+<BaseLayout title={`#${tag} | AI Blog`} description={`Bài viết về ${tag}`}>
+  <Header />
+  
+  <main class="flex-1">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div class="mb-12">
+        <a href="/blog/tags/" class="text-primary-600 dark:text-primary-400 hover:underline mb-4 inline-block">
+          ← Tất cả tags
+        </a>
+        <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-4">
+          #{tag}
+        </h1>
+        <p class="text-xl text-gray-600 dark:text-gray-400">
+          {posts.length} bài viết
+        </p>
+      </div>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {posts.map((post) => (
+          <BlogCard post={post} />
+        ))}
+      </div>
+    </div>
+  </main>
+  
+  <Footer />
+</BaseLayout>
