@@ -1,0 +1,108 @@
+---
+title: "Deep Learning với Neural Networks"
+description: "Khám phá kiến trúc Neural Networks, từ Perceptron đơn giản đến các mạng sâu phức tạp như CNN và RNN."
+pubDate: 2026-02-05
+author: "AI Blog"
+category: "Deep Learning"
+tags: ["deep-learning", "neural-networks", "pytorch", "tensorflow"]
+image: ""
+---
+
+## Neural Networks là gì?
+
+**Neural Networks (Mạng thần kinh nhân tạo)** là một mô hình tính toán lấy cảm hứng từ cách hoạt động của não người. Mạng bao gồm các "neurons" được kết nối với nhau thành các layers.
+
+## Perceptron - Đơn vị cơ bản
+
+Perceptron là neural network đơn giản nhất:
+
+$$y = \sigma(w \cdot x + b) = \sigma\left(\sum_{i=1}^{n} w_i x_i + b\right)$$
+
+Trong đó:
+- $x$ là input vector
+- $w$ là weight vector  
+- $b$ là bias
+- $\sigma$ là activation function
+
+## Activation Functions
+
+### ReLU (Rectified Linear Unit)
+
+$$\text{ReLU}(x) = \max(0, x)$$
+
+### Sigmoid
+
+$$\sigma(x) = \frac{1}{1 + e^{-x}}$$
+
+### Softmax (cho multi-class classification)
+
+$$\text{softmax}(x_i) = \frac{e^{x_i}}{\sum_{j=1}^{K} e^{x_j}}$$
+
+## Xây dựng Neural Network với PyTorch
+
+```python
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+class NeuralNetwork(nn.Module):
+    def __init__(self, input_size, hidden_size, num_classes):
+        super(NeuralNetwork, self).__init__()
+        self.layer1 = nn.Linear(input_size, hidden_size)
+        self.relu = nn.ReLU()
+        self.layer2 = nn.Linear(hidden_size, hidden_size)
+        self.layer3 = nn.Linear(hidden_size, num_classes)
+        self.softmax = nn.Softmax(dim=1)
+    
+    def forward(self, x):
+        out = self.layer1(x)
+        out = self.relu(out)
+        out = self.layer2(out)
+        out = self.relu(out)
+        out = self.layer3(out)
+        return out
+
+# Khởi tạo model
+model = NeuralNetwork(input_size=784, hidden_size=256, num_classes=10)
+print(model)
+```
+
+## Training Loop
+
+```python
+# Loss và Optimizer
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+# Training
+def train(model, train_loader, epochs=10):
+    model.train()
+    
+    for epoch in range(epochs):
+        total_loss = 0
+        
+        for batch_idx, (data, target) in enumerate(train_loader):
+            # Forward pass
+            output = model(data)
+            loss = criterion(output, target)
+            
+            # Backward pass
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            
+            total_loss += loss.item()
+        
+        avg_loss = total_loss / len(train_loader)
+        print(f'Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.4f}')
+```
+
+## Backpropagation
+
+Thuật toán Backpropagation sử dụng chain rule để tính gradient:
+
+$$\frac{\partial L}{\partial w_{ij}^{(l)}} = \frac{\partial L}{\partial a_j^{(l)}} \cdot \frac{\partial a_j^{(l)}}{\partial z_j^{(l)}} \cdot \frac{\partial z_j^{(l)}}{\partial w_{ij}^{(l)}}$$
+
+## Kết luận
+
+Deep Learning là nền tảng của nhiều ứng dụng AI hiện đại. Hãy tiếp tục theo dõi blog để tìm hiểu về CNN, RNN, Transformer và nhiều kiến trúc khác!
