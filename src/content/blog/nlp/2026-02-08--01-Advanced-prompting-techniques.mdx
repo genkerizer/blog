@@ -1,0 +1,371 @@
+---
+title: "Advanced Prompting Techiques"
+description: "Các kỹ thuật prompting nâng cao như Chain-of-thought, Tree-of-thoughts và Reflexion tối ưu hóa khả năng suy luận của LLM."
+pubDate: 2025-12-03
+author: "hopny"
+category: "LLM"
+tags: ["prompting", "llm", "nlp"]
+image: ""
+---
+
+## 1. Chain-of-thought Prompting
+
+Trong các kỹ thuật Advanced Prompting, Chain-of-thought (CoT) là kỹ thuật nền tảng quan trọng nhất, đánh dấu bước chuyển mình của Large Language Model (LLM) từ việc "dự đoán từ tiếp theo" sang "tư duy logic".
+
+
+### 1.1. Nguồn gốc & Ý tưởng
+
+**Nguồn gốc**: Kỹ thuật này được giới thiệu chính thức trong bài báo ```Chain-of-Thought Prompting Elicits Reasoning in Large Language Models``` (Jason Wei et al., Google Research, 2022). Các tác giả phát hiện ra rằng khả năng suy luận của 
+các mô hình ngôn ngữ lớn (LLMs) có thể được "mở khóa" nếu chúng ta yêu cầu mô hình tạo ra các bước trung gian thay vì trả lời ngay lập tức.
+
+**Ý tưởng cốt lõi**:
+Nếu ví Standard Prompting như System 1 trong tư duy con người (tư duy nhanh, trực giác, phản xạ), thì CoT mô phỏng System 2 (tư duy chậm, logic, tuần tự).
+Thay vì mapping trực tiếp từ `Input` $\rightarrow$ `Output`, CoT ép mô hình đi theo quy trình `Input` $\rightarrow$ `Reasoning Chain` $\rightarrow$ `Output`.
+
+
+
+### 1.2. Mô hình Toán học
+
+Dưới góc độ xác suất thống kê, việc sinh văn bản của LLM là đi tìm chuỗi kết quả $y$ có xác suất cao nhất dựa trên đầu vào $x$.
+
+**Standard Prompting (Greedy/Direct):**
+Mô hình cố gắng tối đa hóa xác suất của câu trả lời $y$ trực tiếp từ $x$:
+
+$$
+P(y \mid x)
+$$
+
+**Chain-of-thought Prompting:**
+Mô hình sẽ sinh ra chuỗi suy luận $z$ trước, sau đó mới sinh ra câu trả lời $y$ dựa trên cả $x$ và $z$.
+Công thức xác suất trở thành:
+
+$$
+P(y|x) = \sum_{z} P(y, z|x) = \sum_{z} P(y|x, z) \cdot P(z|x)
+$$
+
+Trong thực tế, khi inference (suy luận), chúng ta thường lấy mẫu chuỗi suy luận có khả năng cao nhất ($\hat{z}$) rồi mới tính $y$:
+1. Sinh chuỗi suy luận: $\hat{z} \sim P(z|x)$
+2. Sinh câu trả lời: $\hat{y} \sim P(y|x, \hat{z})$
+
+### 1.3. Ví dụ Minh họa
+
+Hãy xem sự khác biệt khi giải một bài toán đố:
+
+**Input:**
+> "Quán ăn có 23 quả táo. Nếu họ dùng 20 quả để làm bữa trưa và mua thêm 6 quả nữa. Hỏi họ còn bao nhiêu quả táo?"
+
+**Standard Prompting (Kết quả thường sai):**
+> **Model:** Câu trả lời là 27.
+*(Mô hình cộng nhầm các con số xuất hiện: 23 + 6 - ... điều nãy dẫn đến kết quả sai)*.
+
+**Chain-of-thought Prompting:**
+> **Prompt:** Hãy giải thích từng bước.
+>
+> **Model (Sinh ra $z$ trước):**
+> 1. Ban đầu quán có 23 quả táo.
+> 2. Họ dùng mất 20 quả, vậy còn lại: $23 - 20 = 3$.
+> 3. Sau đó họ mua thêm 6 quả, vậy tổng cộng là: $3 + 6 = 9$.
+>
+> **Model (Sinh ra $y$):**
+> Câu trả lời là 9.
+
+### 1.4. Zero-shot CoT vs Few-shot CoT
+
+Có hai cách chính để kích hoạt CoT:
+
+#### Zero-shot CoT
+
+Đây là kỹ thuật đơn giản nhất nhưng cực kỳ hiệu quả. Thay vì phải đưa ví dụ mẫu, bạn chỉ cần thêm câu lệnh kích hoạt (trigger phrase) như *"Let's think step by step"* (Hãy suy nghĩ từng bước) vào cuối prompt.
+
+**Ví dụ:** Bài toán đố mẹo.
+
+**Prompt (Input):**
+> Tôi có 10 quả táo. Tôi ăn mất 2 quả. Sau đó tôi ra chợ mua thêm số lượng bằng một nửa số táo tôi đang còn lại. Hỏi bây giờ tôi có bao nhiêu quả táo?
+>
+> **Hãy suy nghĩ từng bước.**
+
+**Output (Mô hình tự sinh ra các bước):**
+> 1. Ban đầu bạn có 10 quả táo.
+> 2. Bạn ăn mất 2 quả, vậy số táo còn lại là: $10 - 2 = 8$ quả.
+> 3. Bạn mua thêm số lượng bằng một nửa số táo đang còn lại. Một nửa của 8 là: $8 / 2 = 4$ quả.
+> 4. Tổng số táo hiện tại là số táo còn lại cộng thêm số mới mua: $8 + 4 = 12$ quả.
+>
+> **Câu trả lời:** Bạn hiện có 12 quả táo.
+
+
+---
+
+#### Few-shot CoT
+
+Kỹ thuật này phức tạp hơn nhưng kiểm soát đầu ra tốt hơn. Bạn cung cấp cho mô hình các cặp câu hỏi - câu trả lời mẫu (exemplars), trong đó phần câu trả lời **chứa sẵn quy trình suy luận** mà bạn muốn mô hình bắt chước.
+
+**Ví dụ:** Bài toán xác định hướng đi.
+
+**Prompt (Input):**
+> **Q:** Nam quay mặt về hướng Đông. Cậu ấy xoay 90 độ sang trái, rồi xoay 180 độ. Hỏi Nam đang nhìn về hướng nào?
+> **A:**
+> 1. Ban đầu: Hướng Đông.
+> 2. Xoay 90 độ trái từ Đông $\rightarrow$ Hướng Bắc.
+> 3. Xoay 180 độ từ Bắc $\rightarrow$ Hướng Nam.
+> Kết luận: Hướng Nam.
+>
+> **Q:** Lan quay mặt về hướng Bắc. Cô ấy xoay 90 độ sang phải, rồi xoay tiếp 90 độ sang phải nữa. Hỏi Lan đang nhìn về hướng nào?
+> **A:**
+> 1. Ban đầu: Hướng Bắc.
+> 2. Xoay 90 độ phải từ Bắc $\rightarrow$ Hướng Đông.
+> 3. Xoay tiếp 90 độ phải từ Đông $\rightarrow$ Hướng Nam.
+> Kết luận: Hướng Nam.
+>
+> **Q:** Hùng quay mặt về hướng Tây. Cậu ấy xoay 90 độ sang trái, sau đó xoay 90 độ sang phải. Hỏi Hùng đang nhìn về hướng nào?
+> **A:**
+
+**Output (Mô hình học theo pattern trên để trả lời):**
+> 1. Ban đầu: Hướng Tây.
+> 2. Xoay 90 độ trái từ Tây $\rightarrow$ Hướng Nam.
+> 3. Xoay 90 độ phải từ Nam $\rightarrow$ Hướng Tây (trở lại vị trí cũ).
+> Kết luận: Hướng Tây.
+
+*(Ở đây, mô hình không chỉ trả lời "Hướng Tây" mà còn tự động sinh ra các dòng 1, 2, 3 theo đúng định dạng logic mà chúng ta đã mớm ở trên).*
+
+
+
+### 1.5. Ưu điểm và Nhược điểm
+
+
+| Đặc điểm | Ưu điểm | Nhược điểm |
+| :--- | :--- | :--- |
+| **Hiệu suất & Khả năng** | **Cải thiện độ chính xác:** Tăng đáng kể khả năng giải quyết các bài toán phức tạp như toán đố, tư duy logic, lập trình và suy luận. | **Không hiệu quả với mô hình nhỏ:** CoT là một "khả năng trỗi dậy" (emergent ability), thường chỉ hoạt động tốt trên các mô hình lớn (>100B tham số). Các mô hình nhỏ thường sinh ra chuỗi suy luận vô nghĩa nếu không được huấn luyện để suy luận. |
+| **Tính minh bạch** | **Khả năng giải thích:** Cung cấp cái nhìn sâu sắc (insight) về cách mô hình tư duy. Người dùng có thể biết tại sao mô hình lại đưa ra câu trả lời đó. | **Ảo giác suy luận (Reasoning Hallucination):** Có trường hợp chuỗi suy luận sai nhưng vô tình ra đáp án đúng (false positive), hoặc suy luận đúng nhưng kết luận sai, gây khó khăn khi kiểm tra tự động. |
+| **Triển khai & Chi phí** | **Dễ áp dụng:** Có thể tích hợp vào bất kỳ mô hình LLM nào mà không cần huấn luyện lại (fine-tuning). Chỉ cần thay đổi prompt (Zero-shot hoặc Few-shot). | **Tăng chi phí và độ trễ:** Do mô hình phải sinh ra nhiều token giải thích hơn trước khi trả lời, thời gian phản hồi (latency) lâu hơn và chi phí API (tính theo token) cao hơn. |
+| **Gỡ lỗi (Debugging)** | **Dễ dàng sửa lỗi:** Khi kết quả sai, người dùng có thể nhìn vào chuỗi suy luận để biết sai ở bước nào, từ đó điều chỉnh prompt hoặc cung cấp thêm kiến thức nền chính xác hơn. | **Nhạy cảm với Prompt:** Chất lượng của chuỗi suy luận phụ thuộc nhiều vào cách viết prompt. Một thay đổi nhỏ trong cách diễn đạt câu hỏi cũng có thể làm thay đổi hoàn toàn chuỗi suy luận. |
+| **Phạm vi áp dụng** | **Linh hoạt:** Áp dụng được cho nhiều loại tác vụ khác nhau, từ giải toán, tóm tắt văn bản theo cấu trúc, đến việc lập kế hoạch cho AI Agent. | **Dư thừa cho tác vụ đơn giản:** Đối với các câu hỏi đơn giản (như "Thủ đô của Pháp là gì?"), việc ép mô hình suy nghĩ từng bước là không cần thiết và lãng phí tài nguyên, do đó cần biết khi nào cần dùng. |
+
+
+
+Dưới đây là giải thích chi tiết về **Self-consistency**, kỹ thuật được coi là bản nâng cấp quan trọng nhất của Chain-of-thought nhằm tăng độ tin cậy cho LLM.
+
+---
+
+## 2. Self-consistency
+
+### 2.1. Nguồn gốc & Ý tưởng
+
+**Nguồn gốc:**
+Kỹ thuật này được đề xuất trong bài báo *"Self-Consistency Improves Chain of Thought Reasoning in Language Models"* (Wang et al., Google Research, 2022). Các tác giả nhận thấy rằng trong các bài toán suy luận phức tạp, có nhiều con đường suy nghĩ (reasoning paths) khác nhau để dẫn đến cùng một câu trả lời đúng.
+
+**Ý tưởng cốt lõi:**
+Thay vì chỉ hỏi mô hình một lần và tin ngay vào câu trả lời đầu tiên (thường là cách giải mã "Greedy decoding" - chọn xác suất cao nhất tại mỗi bước), Self-consistency áp dụng nguyên lý **"Trí tuệ đám đông" (Wisdom of the Crowds)** ngay trên chính một mô hình duy nhất.
+
+Quy trình hoạt động:
+1.  Hỏi mô hình cùng một câu hỏi nhiều lần (với độ ngẫu nhiên `temperature > 0` để tạo sự đa dạng).
+2.  Mô hình sẽ sinh ra nhiều chuỗi suy luận khác nhau.
+3.  Thu thập các câu trả lời cuối cùng và chọn đáp án xuất hiện nhiều nhất (**Majority Voting**).
+
+*Ví dụ đời thực: Giống như việc bạn hỏi 5 giáo sư toán học cùng một bài toán khó. Nếu 4 người ra kết quả A và 1 người ra kết quả B, bạn sẽ tin kết quả A.*
+
+### 2.2 Mô hình Toán học
+
+Giả sử chúng ta có đầu vào là câu hỏi $x$.
+
+**Cách cũ (Greedy Decode - CoT thường):**
+Chúng ta tìm chuỗi suy luận và câu trả lời $(r, y)$ sao cho xác suất là cao nhất:
+$$
+(r^*, y^*) = \arg\max_{r, y} P(r, y | x)
+$$
+Cách này rất rủi ro vì chỉ cần sai một bước suy luận là kết quả sai hoàn toàn.
+
+**Cách mới (Self-consistency):**
+Chúng ta lấy mẫu (sample) $k$ chuỗi suy luận khác nhau từ phân phối của mô hình:
+$$
+r_1, r_2, ..., r_k \sim P(r, y | x)
+$$
+
+Mỗi chuỗi suy luận $r_i$ sẽ dẫn đến một câu trả lời cuối cùng $y_i$.
+
+Câu trả lời cuối cùng $\hat{y}$ được chọn bằng cách bỏ phiếu đa số (Majority Vote):
+
+$$
+\hat{y} = \arg\max_{y} \sum_{i=1}^{k} \mathbb{I}(y_i = y)
+$$
+
+Trong đó:
+-   $k$: Số lượng mẫu (ví dụ: hỏi 5 lần hoặc 40 lần).
+-   $\mathbb{I}(condition)$: Hàm chỉ thị (trả về 1 nếu $y_i$ giống $y$, ngược lại là 0).
+-   $\arg\max$: Chọn giá trị $y$ có tổng số phiếu cao nhất.
+
+### 2.3 Ví dụ Minh họa
+
+Giả sử ta hỏi bài toán: *"Mẹ mua 5 quả táo. Mẹ cho Lan 2 quả. Bố mua thêm 3 quả. Hỏi nhà còn mấy quả?"*
+
+Chúng ta thiết lập `temperature = 0.7` và hỏi mô hình 3 lần (Sample $k=3$):
+
+**Lần 1 (Sample 1):**
+> Tư duy:
+> 1. Có 5 quả.
+> 2. Cho Lan 2 quả $\rightarrow$ còn $5 - 2 = 3$.
+> 3. Bố mua thêm 3 quả $\rightarrow$ tổng $3 + 3 = 6$.
+> **Đáp án: 6**
+
+**Lần 2 (Sample 2):** *[Đây là lần suy luận bị lỗi]*
+> Tư duy:
+> 1. Mẹ có 5 quả.
+> 2. Cho Lan 2 quả.
+> 3. Bố mua thêm 3 quả.
+> 4. Tổng cộng là $5 + 3 = 8$ quả (Quên trừ đi phần đã cho Lan).
+> **Đáp án: 8**
+
+**Lần 3 (Sample 3):** *[Cách diễn đạt khác]*
+> Tư duy:
+> 1. Số táo ban đầu: 5.
+> 2. Số táo thêm vào: 3.
+> 3. Số táo mất đi: 2.
+> 4. Phép tính: $5 + 3 - 2 = 6$.
+> **Đáp án: 6**
+
+**Tổng hợp kết quả (Majority Vote):**
+-   Đáp án "6": 2 phiếu (Sample 1, Sample 3).
+-   Đáp án "8": 1 phiếu (Sample 2).
+
+$\rightarrow$ **Kết luận cuối cùng: 6.**
+
+### 2.4. Ưu và nhược điểm
+
+**Ưu điểm:**
+*   **Giảm thiểu sai sót:** Giúp loại bỏ các lỗi suy luận ngẫu nhiên của mô hình nhờ cơ chế "số đông thắng thiểu số".
+*   **Đo lường độ tin cậy:** Mức độ đồng thuận giữa các câu trả lời đóng vai trò như thước đo sự tự tin (nếu tất cả các lần suy luận đều ra cùng kết quả $\rightarrow$ độ tin cậy cao).
+*   **Tăng cường cho CoT:** Là sự bổ sung hoàn hảo giúp tăng sức mạnh và độ ổn định cho kỹ thuật Chain-of-thought.
+
+**Nhược điểm (Trade-offs):**
+*   **Chi phí cao:** Tốn kém tài nguyên tính toán và thời gian phản hồi lâu hơn do phải chạy mô hình nhiều lần cho một câu hỏi.
+*   **Hạn chế phạm vi:** Chỉ thực sự hiệu quả với các bài toán có đáp án cố định (như Toán học, Logic) để có thể thực hiện "bỏ phiếu".
+*   **Nhạy cảm với tham số:** Kết quả phụ thuộc lớn vào chiến lược lấy mẫu (như `temperature`, `top-k`); cần tinh chỉnh để cân bằng giữa sự đa dạng và chính xác.
+
+
+
+## 3. Tree-of-thoughts (ToT)
+
+### 3.1. Nguồn gốc
+
+Đây kỹ thuật prompting nâng cao đưa khả năng giải quyết vấn đề của LLM lên một tầm cao mới bằng cách mô phỏng quá trình **thử-sai (trial and error)** và **lập kế hoạch (planning)** của con người.
+Kỹ thuật này được giới thiệu vào năm 2023 qua bài báo nổi tiếng `Tree of Thoughts: Deliberate Problem Solving in Large Language Models`.
+
+Nó ra đời để khắc phục hạn chế của Chain-of-thought (CoT). CoT suy nghĩ theo đường thẳng (tuyến tính), nếu bước 1 sai thì các bước sau sẽ sai hết. Ngược lại, ToT cho phép mô hình suy nghĩ theo cấu trúc cây, có thể quay lại (backtrack) nếu đi vào ngõ cụt.
+### 3.2. Ý tưởng cốt lõi
+
+**Ý tưởng:**
+ToT coi việc giải quyết vấn đề là một quá trình tìm kiếm trên một cái cây (Tree Search).
+- Mỗi **Nút (Node)** là một trạng thái suy nghĩ (thought/state).
+- Mỗi **Cạnh (Edge)** là một hành động hoặc bước chuyển đổi.
+
+Quy trình hoạt động gồm 4 thành phần chính (như trong hình):
+
+1.  **Decomposition (Phân rã):** Chia bài toán lớn thành các bước nhỏ trung gian.
+2.  **Thought Generator (Bộ sinh ý tưởng):** Tại mỗi bước, tạo ra nhiều phương án (kết quả dự kiến) khác nhau thay vì chỉ một.
+    *   Ví dụ: Từ trạng thái $s$, sinh ra $k$ trạng thái tiếp theo $z_1, z_2, ..., z_k$.
+3.  **State Evaluator (Bộ đánh giá):** Đánh giá xem hướng đi nào triển vọng nhất. Mô hình tự chấm điểm hoặc phân loại (ví dụ: "Chắc chắn", "Có thể", "Sai").
+4.  **Search Algorithm (Thuật toán tìm kiếm):** Sử dụng các thuật toán kinh điển trong Khoa học máy tính:
+    *   **BFS (Breadth-First Search):** Duyệt theo chiều rộng (xét hết các phương án ở bước hiện tại rồi mới đi tiếp).
+    *   **DFS (Depth-First Search):** Duyệt theo chiều sâu (đi đến cùng một nhánh, nếu sai thì quay lui - **backtrack**).
+
+### 3.3. Ví dụ Minh họa
+
+**Viết truyện sáng tạo:** Viết một đoạn kết cho câu chuyện trinh thám: "Thám tử bước vào căn phòng khóa kín và chỉ thấy một vũng nước trên sàn."
+
+#### Cây suy nghĩ (Tree Structure):
+
+*   **Ý tưởng cấp 1 (Nguyên nhân cái chết):**
+    *   *Nhánh 1:* Nạn nhân bị bắn bằng súng nước (Độc dược).
+        *   **Đánh giá:** Hơi trẻ con, không phù hợp trinh thám kịch tính. $\rightarrow$ **Loại**.
+    *   *Nhánh 2:* Hung khí làm bằng đá lạnh (Ice dagger).
+        *   **Đánh giá:** Kinh điển, hợp lý với vũng nước (đá tan chảy). $\rightarrow$ **Chọn**.
+    *   *Nhánh 3:* Nạn nhân bị dìm chết ở nơi khác rồi kéo về.
+        *   **Đánh giá:** Vô lý vì phòng khóa kín từ bên trong. $\rightarrow$ **Loại**.
+
+*   **Ý tưởng cấp 2 (Mở rộng từ Nhánh 2 - Hung khí đá lạnh):**
+    *   *Nhánh 2.1:* Hung thủ ném dao băng qua cửa sổ.
+        *   **Đánh giá:** Cửa sổ đóng kín (theo đề bài). $\rightarrow$ **Quay lui (Backtrack)**.
+    *   *Nhánh 2.2:* Hung thủ giấu dao băng trong hệ thống điều hòa, hẹn giờ rơi xuống.
+        *   **Đánh giá:** Sáng tạo, giải thích được phòng kín. $\rightarrow$ **Chọn**.
+
+*   **Kết quả cuối cùng:**
+    Thám tử nhìn lên trần nhà, thấy lỗ thông gió điều hòa thẳng đứng phía trên vũng nước. Anh nhận ra hung khí là một mũi nhọn làm bằng băng, được đặt sẵn ở đó và tan chảy sau khi gây án, không để lại dấu vân tay.
+
+
+## 4. Least-to-most Prompting
+
+**Least-to-most Prompting** (Từ ít đến nhiều/Từ dễ đến khó) là kỹ thuật chia để trị (divide-and-conquer), tập trung vào việc phân rã một vấn đề phức tạp thành các bài toán con đơn giản hơn và giải quyết chúng theo trình tự.
+
+### 4.1. Nguồn gốc & Ý tưởng
+
+**Nguồn gốc:**
+Kỹ thuật này được giới thiệu trong bài báo `Least-to-Most Prompting Enables Complex Reasoning in Large Language Models` (Zhou et al., Google Research, 2022). Các tác giả nhận thấy rằng CoT (Chain-of-thought) hoạt động tốt, nhưng khi bài toán trở nên quá dài hoặc yêu cầu suy luận khái quát hóa (generalization) vượt ra ngoài các ví dụ mẫu, CoT thường thất bại.
+
+**Ý tưởng cốt lõi:**
+Giống như cách con người học tập: chúng ta học giải các bài toán dễ trước, sau đó dùng kiến thức đó để giải bài toán khó hơn.
+Quy trình gồm 2 giai đoạn tách biệt:
+1.  **Giai đoạn Phân rã (Decomposition):** Hỏi mô hình cách chia bài toán lớn thành danh sách các bài toán con.
+2.  **Giai đoạn Giải quyết (Solution):** Giải lần lượt từng bài toán con. Câu trả lời của bài toán trước được nối vào prompt để làm ngữ cảnh giải bài toán sau.
+
+### 4.2. Phương pháp thực hiện
+
+Khác với CoT, chỉ sinh ra chuỗi suy luận một lần, Least-to-most là một quy trình lặp (iterative process).
+
+Giả sử bài toán gốc là $Q$.
+1.  **Phân rã:**
+    $$Q \rightarrow \{q_1, q_2, ..., q_n\}$$
+2.  **Giải quyết tuần tự:**
+    *   Bước 1: Giải $q_1 \rightarrow a_1$.
+    *   Bước 2: Giải $q_2$ dựa trên ngữ cảnh $(q_1, a_1) \rightarrow a_2$.
+    *   ...
+    *   Bước $i$: Giải $q_i$ dựa trên ngữ cảnh các bước trước $(q_{<i}, a_{<i}) \rightarrow a_i$.
+
+
+### 4.3. Ví dụ Minh họa
+
+**Bài toán (Problem):** "Có bao nhiêu chữ cái trong từ 'strawberry'?"
+*(Thực tế bài này khá đơn giản, nhưng hãy xem cách Least-to-most xử lý cấu trúc).*
+
+**Giai đoạn 1: Phân rã (Decomposition)**
+
+* **Prompt:** 
+> Hãy chia bài toán `Có bao nhiêu chữ cái trong từ 'strawberry'?` thành các bước nhỏ.
+
+* **Model:**
+> 1. Liệt kê các chữ cái có trong từ "strawberry".
+> 2. Đếm số lần xuất hiện của từng chữ cái riêng biệt.
+> 3. Cộng tổng các số đếm lại.
+
+**Giai đoạn 2: Giải quyết tuần tự (Sequential Solving)**
+
+*   **Bước 1:**
+
+    * **Input:** `Liệt kê các chữ cái trong "strawberry".`
+
+    * **Output:** `s, t, r, a, w, b, e, r, r, y.`
+
+*   **Bước 2:** (Prompt bao gồm kết quả Bước 1)
+
+    * **Input:** `Dựa vào danh sách "s, t, r, a, w, b, e, r, r, y", hãy đếm từng chữ cái.`
+    * **Output:**
+    ```- s: 1
+    - t: 1
+    - r: 3
+    - a: 1
+    - w: 1
+    - b: 1
+    - e: 1
+    - y: 1
+
+*   **Bước 3 (Final):** (Prompt bao gồm kết quả Bước 2)
+    * **Input:** Cộng tổng các số đếm trên.
+
+    * **Output:** $1+1+3+1+1+1+1+1 = 10$.
+
+### 4.4 Ưu và nhược điểm
+
+
+**Ưu điểm** 
+* **Độ chính xác:** Rất cao với các bài toán logic dài Dễ dàng debug vì từng bước được tách biệt rõ ràng.
+
+**Nhược điểm** 
+* **Chi phí:** Phải gọi API nhiều lần (tương ứng số bước nhỏ), làm tăng chi phí và độ trễ `Lan truyền lỗi (Error Propagation)`. Nếu bước 1 giải sai, các bước sau dùng kết quả đó sẽ sai theo dây chuyền.
