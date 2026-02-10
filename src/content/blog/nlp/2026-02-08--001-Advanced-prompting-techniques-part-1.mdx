@@ -1,6 +1,6 @@
 ---
-title: "Advanced Prompting Techiques"
-description: "Các kỹ thuật prompting nâng cao như Chain-of-thought, Tree-of-thoughts và Reflexion tối ưu hóa khả năng suy luận của LLM."
+title: "Advanced Prompting Techiques - Part 1"
+description: "Tìm hiểu về các kỹ thuật prompting nâng cao như Chain-of-thought, Self-consistency, Tree-of-thoughts và Least-to-most Prompting giúp khai thác tối ưu hóa khả năng suy luận của LLM."
 pubDate: 2025-12-03
 author: "hopny"
 category: "LLM"
@@ -52,22 +52,23 @@ Trong thực tế, khi inference (suy luận), chúng ta thường lấy mẫu c
 Hãy xem sự khác biệt khi giải một bài toán đố:
 
 **Input:**
-> "Quán ăn có 23 quả táo. Nếu họ dùng 20 quả để làm bữa trưa và mua thêm 6 quả nữa. Hỏi họ còn bao nhiêu quả táo?"
+Quán ăn có 23 quả táo. Nếu họ dùng 20 quả để làm bữa trưa và mua thêm 6 quả nữa. Hỏi họ còn bao nhiêu quả táo?
 
 **Standard Prompting (Kết quả thường sai):**
-> **Model:** Câu trả lời là 27.
+
+* **Model:** Câu trả lời là 27.
 *(Mô hình cộng nhầm các con số xuất hiện: 23 + 6 - ... điều nãy dẫn đến kết quả sai)*.
 
 **Chain-of-thought Prompting:**
-> **Prompt:** Hãy giải thích từng bước.
->
-> **Model (Sinh ra $z$ trước):**
-> 1. Ban đầu quán có 23 quả táo.
-> 2. Họ dùng mất 20 quả, vậy còn lại: $23 - 20 = 3$.
-> 3. Sau đó họ mua thêm 6 quả, vậy tổng cộng là: $3 + 6 = 9$.
->
-> **Model (Sinh ra $y$):**
-> Câu trả lời là 9.
+* **Prompt:** Hãy giải thích từng bước.
+
+* **Model (Sinh ra $z$ trước):**
+    * 1. Ban đầu quán có 23 quả táo.
+    * 2. Họ dùng mất 20 quả, vậy còn lại: $23 - 20 = 3$.
+    * 3. Sau đó họ mua thêm 6 quả, vậy tổng cộng là: $3 + 6 = 9$.
+
+* **Model (Sinh ra $y$):**
+    * Câu trả lời là 9.
 
 ### 1.4. Zero-shot CoT vs Few-shot CoT
 
@@ -75,25 +76,22 @@ Có hai cách chính để kích hoạt CoT:
 
 #### Zero-shot CoT
 
-Đây là kỹ thuật đơn giản nhất nhưng cực kỳ hiệu quả. Thay vì phải đưa ví dụ mẫu, bạn chỉ cần thêm câu lệnh kích hoạt (trigger phrase) như *"Let's think step by step"* (Hãy suy nghĩ từng bước) vào cuối prompt.
+Đây là kỹ thuật đơn giản nhất nhưng cực kỳ hiệu quả. Thay vì phải đưa ví dụ mẫu, bạn chỉ cần thêm câu lệnh kích hoạt (trigger phrase) như **"Let's think step by step"** (Hãy suy nghĩ từng bước) vào cuối prompt.
 
 **Ví dụ:** Bài toán đố mẹo.
 
 **Prompt (Input):**
-> Tôi có 10 quả táo. Tôi ăn mất 2 quả. Sau đó tôi ra chợ mua thêm số lượng bằng một nửa số táo tôi đang còn lại. Hỏi bây giờ tôi có bao nhiêu quả táo?
->
-> **Hãy suy nghĩ từng bước.**
+* Tôi có 10 quả táo. Tôi ăn mất 2 quả. Sau đó tôi ra chợ mua thêm số lượng bằng một nửa số táo tôi đang còn lại. Hỏi bây giờ tôi có bao nhiêu quả táo?
+* **Hãy suy nghĩ từng bước.**
 
 **Output (Mô hình tự sinh ra các bước):**
-> 1. Ban đầu bạn có 10 quả táo.
-> 2. Bạn ăn mất 2 quả, vậy số táo còn lại là: $10 - 2 = 8$ quả.
-> 3. Bạn mua thêm số lượng bằng một nửa số táo đang còn lại. Một nửa của 8 là: $8 / 2 = 4$ quả.
-> 4. Tổng số táo hiện tại là số táo còn lại cộng thêm số mới mua: $8 + 4 = 12$ quả.
->
-> **Câu trả lời:** Bạn hiện có 12 quả táo.
+    * 1. Ban đầu bạn có 10 quả táo.
+    * 2. Bạn ăn mất 2 quả, vậy số táo còn lại là: $10 - 2 = 8$ quả.
+    * 3. Bạn mua thêm số lượng bằng một nửa số táo đang còn lại. Một nửa của 8 là: $8 / 2 = 4$ quả.
+    * 4. Tổng số táo hiện tại là số táo còn lại cộng thêm số mới mua: $8 + 4 = 12$ quả.
 
+    * **Câu trả lời:** Bạn hiện có 12 quả táo.
 
----
 
 #### Few-shot CoT
 
@@ -102,28 +100,28 @@ Kỹ thuật này phức tạp hơn nhưng kiểm soát đầu ra tốt hơn. B�
 **Ví dụ:** Bài toán xác định hướng đi.
 
 **Prompt (Input):**
-> **Q:** Nam quay mặt về hướng Đông. Cậu ấy xoay 90 độ sang trái, rồi xoay 180 độ. Hỏi Nam đang nhìn về hướng nào?
-> **A:**
-> 1. Ban đầu: Hướng Đông.
-> 2. Xoay 90 độ trái từ Đông $\rightarrow$ Hướng Bắc.
-> 3. Xoay 180 độ từ Bắc $\rightarrow$ Hướng Nam.
-> Kết luận: Hướng Nam.
->
-> **Q:** Lan quay mặt về hướng Bắc. Cô ấy xoay 90 độ sang phải, rồi xoay tiếp 90 độ sang phải nữa. Hỏi Lan đang nhìn về hướng nào?
-> **A:**
-> 1. Ban đầu: Hướng Bắc.
-> 2. Xoay 90 độ phải từ Bắc $\rightarrow$ Hướng Đông.
-> 3. Xoay tiếp 90 độ phải từ Đông $\rightarrow$ Hướng Nam.
-> Kết luận: Hướng Nam.
->
-> **Q:** Hùng quay mặt về hướng Tây. Cậu ấy xoay 90 độ sang trái, sau đó xoay 90 độ sang phải. Hỏi Hùng đang nhìn về hướng nào?
-> **A:**
+* **Question:** Nam quay mặt về hướng Đông. Cậu ấy xoay 90 độ sang trái, rồi xoay 180 độ. Hỏi Nam đang nhìn về hướng nào?
+* **Answer:**
+    * 1. Ban đầu: Hướng Đông.
+    * 2. Xoay 90 độ trái từ Đông $\rightarrow$ Hướng Bắc.
+    * 3. Xoay 180 độ từ Bắc $\rightarrow$ Hướng Nam.
+    * Kết luận: Hướng Nam.
+
+* **Question:** Lan quay mặt về hướng Bắc. Cô ấy xoay 90 độ sang phải, rồi xoay tiếp 90 độ sang phải nữa. Hỏi Lan đang nhìn về hướng nào?
+* **Answer:**
+    * 1. Ban đầu: Hướng Bắc.
+    * 2. Xoay 90 độ phải từ Bắc $\rightarrow$ Hướng Đông.
+    * 3. Xoay tiếp 90 độ phải từ Đông $\rightarrow$ Hướng Nam.
+    * Kết luận: Hướng Nam.
+
+* **Question:** Hùng quay mặt về hướng Tây. Cậu ấy xoay 90 độ sang trái, sau đó xoay 90 độ sang phải. Hỏi Hùng đang nhìn về hướng nào?
+* **Answer:**
 
 **Output (Mô hình học theo pattern trên để trả lời):**
-> 1. Ban đầu: Hướng Tây.
-> 2. Xoay 90 độ trái từ Tây $\rightarrow$ Hướng Nam.
-> 3. Xoay 90 độ phải từ Nam $\rightarrow$ Hướng Tây (trở lại vị trí cũ).
-> Kết luận: Hướng Tây.
+    * 1. Ban đầu: Hướng Tây.
+    * 2. Xoay 90 độ trái từ Tây $\rightarrow$ Hướng Nam.
+    * 3. Xoay 90 độ phải từ Nam $\rightarrow$ Hướng Tây (trở lại vị trí cũ).
+    * Kết luận: Hướng Tây.
 
 *(Ở đây, mô hình không chỉ trả lời "Hướng Tây" mà còn tự động sinh ra các dòng 1, 2, 3 theo đúng định dạng logic mà chúng ta đã mớm ở trên).*
 
@@ -140,9 +138,6 @@ Kỹ thuật này phức tạp hơn nhưng kiểm soát đầu ra tốt hơn. B�
 | **Gỡ lỗi (Debugging)** | **Dễ dàng sửa lỗi:** Khi kết quả sai, người dùng có thể nhìn vào chuỗi suy luận để biết sai ở bước nào, từ đó điều chỉnh prompt hoặc cung cấp thêm kiến thức nền chính xác hơn. | **Nhạy cảm với Prompt:** Chất lượng của chuỗi suy luận phụ thuộc nhiều vào cách viết prompt. Một thay đổi nhỏ trong cách diễn đạt câu hỏi cũng có thể làm thay đổi hoàn toàn chuỗi suy luận. |
 | **Phạm vi áp dụng** | **Linh hoạt:** Áp dụng được cho nhiều loại tác vụ khác nhau, từ giải toán, tóm tắt văn bản theo cấu trúc, đến việc lập kế hoạch cho AI Agent. | **Dư thừa cho tác vụ đơn giản:** Đối với các câu hỏi đơn giản (như "Thủ đô của Pháp là gì?"), việc ép mô hình suy nghĩ từng bước là không cần thiết và lãng phí tài nguyên, do đó cần biết khi nào cần dùng. |
 
-
-
-Dưới đây là giải thích chi tiết về **Self-consistency**, kỹ thuật được coi là bản nâng cấp quan trọng nhất của Chain-of-thought nhằm tăng độ tin cậy cho LLM.
 
 ---
 
@@ -200,44 +195,44 @@ Giả sử ta hỏi bài toán: *"Mẹ mua 5 quả táo. Mẹ cho Lan 2 quả. B
 Chúng ta thiết lập `temperature = 0.7` và hỏi mô hình 3 lần (Sample $k=3$):
 
 **Lần 1 (Sample 1):**
-> Tư duy:
-> 1. Có 5 quả.
-> 2. Cho Lan 2 quả $\rightarrow$ còn $5 - 2 = 3$.
-> 3. Bố mua thêm 3 quả $\rightarrow$ tổng $3 + 3 = 6$.
-> **Đáp án: 6**
+* Tư duy:
+    * 1. Có 5 quả.
+    * 2. Cho Lan 2 quả $\rightarrow$ còn $5 - 2 = 3$.
+    * 3. Bố mua thêm 3 quả $\rightarrow$ tổng $3 + 3 = 6$.
+    * **Đáp án: 6**
 
 **Lần 2 (Sample 2):** *[Đây là lần suy luận bị lỗi]*
-> Tư duy:
-> 1. Mẹ có 5 quả.
-> 2. Cho Lan 2 quả.
-> 3. Bố mua thêm 3 quả.
-> 4. Tổng cộng là $5 + 3 = 8$ quả (Quên trừ đi phần đã cho Lan).
-> **Đáp án: 8**
+* Tư duy:
+    * 1. Mẹ có 5 quả.
+    * 2. Cho Lan 2 quả.
+    * 3. Bố mua thêm 3 quả.
+    * 4. Tổng cộng là $5 + 3 = 8$ quả (Quên trừ đi phần đã cho Lan).
+    * **Đáp án: 8**
 
 **Lần 3 (Sample 3):** *[Cách diễn đạt khác]*
-> Tư duy:
-> 1. Số táo ban đầu: 5.
-> 2. Số táo thêm vào: 3.
-> 3. Số táo mất đi: 2.
-> 4. Phép tính: $5 + 3 - 2 = 6$.
-> **Đáp án: 6**
+* Tư duy:
+    * 1. Số táo ban đầu: 5.
+    * 2. Số táo thêm vào: 3.
+    * 3. Số táo mất đi: 2.
+    * 4. Phép tính: $5 + 3 - 2 = 6$.
+    * **Đáp án: 6**
 
 **Tổng hợp kết quả (Majority Vote):**
--   Đáp án "6": 2 phiếu (Sample 1, Sample 3).
--   Đáp án "8": 1 phiếu (Sample 2).
+-   Đáp án **6**: 2 phiếu (Sample 1, Sample 3).
+-   Đáp án **8**: 1 phiếu (Sample 2).
 
 $\rightarrow$ **Kết luận cuối cùng: 6.**
 
 ### 2.4. Ưu và nhược điểm
 
 **Ưu điểm:**
-*   **Giảm thiểu sai sót:** Giúp loại bỏ các lỗi suy luận ngẫu nhiên của mô hình nhờ cơ chế "số đông thắng thiểu số".
+*   **Giảm thiểu sai sót:** Giúp loại bỏ các lỗi suy luận ngẫu nhiên của mô hình nhờ cơ chế **số đông thắng thiểu số**.
 *   **Đo lường độ tin cậy:** Mức độ đồng thuận giữa các câu trả lời đóng vai trò như thước đo sự tự tin (nếu tất cả các lần suy luận đều ra cùng kết quả $\rightarrow$ độ tin cậy cao).
 *   **Tăng cường cho CoT:** Là sự bổ sung hoàn hảo giúp tăng sức mạnh và độ ổn định cho kỹ thuật Chain-of-thought.
 
 **Nhược điểm (Trade-offs):**
 *   **Chi phí cao:** Tốn kém tài nguyên tính toán và thời gian phản hồi lâu hơn do phải chạy mô hình nhiều lần cho một câu hỏi.
-*   **Hạn chế phạm vi:** Chỉ thực sự hiệu quả với các bài toán có đáp án cố định (như Toán học, Logic) để có thể thực hiện "bỏ phiếu".
+*   **Hạn chế phạm vi:** Chỉ thực sự hiệu quả với các bài toán có đáp án cố định (như Toán học, Logic) để có thể thực hiện **bỏ phiếu**.
 *   **Nhạy cảm với tham số:** Kết quả phụ thuộc lớn vào chiến lược lấy mẫu (như `temperature`, `top-k`); cần tinh chỉnh để cân bằng giữa sự đa dạng và chính xác.
 
 
@@ -322,30 +317,29 @@ Giả sử bài toán gốc là $Q$.
 
 ### 4.3. Ví dụ Minh họa
 
-**Bài toán (Problem):** "Có bao nhiêu chữ cái trong từ 'strawberry'?"
+**Bài toán (Problem):** Có bao nhiêu chữ cái trong từ `strawberry`?
 *(Thực tế bài này khá đơn giản, nhưng hãy xem cách Least-to-most xử lý cấu trúc).*
 
 **Giai đoạn 1: Phân rã (Decomposition)**
 
-* **Prompt:** 
-> Hãy chia bài toán `Có bao nhiêu chữ cái trong từ 'strawberry'?` thành các bước nhỏ.
+* **Prompt:** Hãy chia bài toán `Có bao nhiêu chữ cái trong từ 'strawberry'?` thành các bước nhỏ.
 
 * **Model:**
-> 1. Liệt kê các chữ cái có trong từ "strawberry".
-> 2. Đếm số lần xuất hiện của từng chữ cái riêng biệt.
-> 3. Cộng tổng các số đếm lại.
+    * 1. Liệt kê các chữ cái có trong từ "strawberry".
+    * 2. Đếm số lần xuất hiện của từng chữ cái riêng biệt.
+    * 3. Cộng tổng các số đếm lại.
 
 **Giai đoạn 2: Giải quyết tuần tự (Sequential Solving)**
 
 *   **Bước 1:**
 
-    * **Input:** `Liệt kê các chữ cái trong "strawberry".`
+    * **Input:** Liệt kê các chữ cái trong `strawberry`.
 
     * **Output:** `s, t, r, a, w, b, e, r, r, y.`
 
 *   **Bước 2:** (Prompt bao gồm kết quả Bước 1)
 
-    * **Input:** `Dựa vào danh sách "s, t, r, a, w, b, e, r, r, y", hãy đếm từng chữ cái.`
+    * **Input:** Dựa vào danh sách `s, t, r, a, w, b, e, r, r, y`, hãy đếm từng chữ cái.`
     * **Output:**
     ```- s: 1
     - t: 1
@@ -361,7 +355,7 @@ Giả sử bài toán gốc là $Q$.
 
     * **Output:** $1+1+3+1+1+1+1+1 = 10$.
 
-### 4.4 Ưu và nhược điểm
+### 4.4. Ưu và nhược điểm
 
 
 **Ưu điểm** 

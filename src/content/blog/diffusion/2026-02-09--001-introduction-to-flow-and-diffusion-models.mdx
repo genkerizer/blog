@@ -1,0 +1,316 @@
+---
+title: "Introduction to flow and diffusion models"
+description: "Từ ý tưởng khuếch tán trong nhiệt động lực học đến nền tảng mô hình tạo sinh hình ảnh."
+pubDate: 2026-01-01
+author: "hopny"
+category: "Diffusion"
+tags: ["diffusion", "computer-vision", "generative-model", "torch"]
+image: ""
+---
+
+
+## 1. Khái niệm tạo sinh
+
+*   **Trong đời sống:** Khi nói đến **tạo sinh (generate)**, chúng ta thường nghĩ đến việc tạo ra một thứ gì đó mới mẻ: vẽ một bức tranh, viết một đoạn văn, hay tạo ra một đoạn video. 
+*   **Trong máy tính:** Tạo sinh thực chất là quá trình **lấy mẫu (Sampling)** từ một phân phối xác suất phức tạp. Thay vì nói *hãy vẽ một con mèo*, chúng ta sẽ nói *hãy lấy ra một điểm dữ liệu từ tập hợp tất cả các hình ảnh có xác suất là con mèo cao nhất*.
+
+Trong bài viết này, chúng tôi chỉ đề cập đến các đối tượng tạo sinh là Hình ảnh và Video
+
+
+## 2. Vector hóa dữ liệu
+
+Để máy tính xử lý được hình ảnh, video, bước đầu tiên và quan trọng nhất là phải chuyển đổi chúng thành các con số. 
+Chúng ta gọi chung các đối tượng này là các **vector dữ liệu ($z$)**. Hãy cùng xem cách chúng ta biểu diễn các đối tượng thực tế vào không gian toán học:
+
+### 2.1. Hình ảnh
+Một bức ảnh không chỉ là cái chúng ta nhìn thấy, mà là một khối dữ liệu:
+    *   **H (Height):** Chiều cao (số lượng pixel hàng dọc).
+    *   **W (Width):** Chiều rộng (số lượng pixel hàng ngang).
+    *   **3 (Channels):** Ba kênh màu cơ bản Đỏ, Xanh lá, Xanh dương (RGB).
+
+Khi đó Vector dữ liệu $z \in \mathbb{R}^{H \times W \times 3}$. Nghĩa là hình ảnh là một điểm trong không gian có số chiều bằng $H \times W \times 3$.
+
+### 2.2. Video
+Video thực chất là một chuỗi các hình ảnh nối tiếp nhau theo thời gian. 
+Chúng ta thêm một chiều thời gian $T$ vào khối dữ liệu hình ảnh:
+*   **T (Time frames):** Số lượng khung hình theo thời gian.
+
+Khi đó, điểm dữ liệu $z \in \mathbb{R}^{T \times H \times W \times 3}$.
+
+## 3. Đánh giá việc lấy mẫu thành công
+
+![Nhận định cảm tính của con người với các kết quả tạo sinh](src/content/images/diffusion/0001.png)
+
+
+### 3.1. Nhận định cảm tính của con người
+
+Giả sử chúng ta đưa vào một yêu cầu (Prompt): `A picture of a dog`. Kết quả đầu ra của mô hình có thể rơi vào các trường hợp sau:
+
+*  **Vô dụng (Useless):** Một tấm hình nhiễu hạt (noise), không ra hình thù gì cả.
+*  **Tệ (Bad):** Một bức ảnh chụp con phố, mặc dù là ảnh thật nhưng hoàn toàn không có con chó nào.
+*  **Sai đối tượng (Wrong animal):** Ảnh chụp rất rõ nét, nhưng lại là một con mèo thay vì con chó.
+*  **Tuyệt vời (Great!):** Một bức ảnh con chó rõ nét, đúng như yêu cầu.
+
+Những từ như **vô dụng**, **tệ** hay **tuyệt vời** đều là những nhận xét mang tính cảm tính. 
+Con người chúng ta có thể nhìn và hiểu ngay, nhưng máy tính thì không. Do đó chúng ta cần **cụ thể hóa** 
+những khái niệm này thành ngôn ngữ toán học.
+
+### 3.2. Phân phối dữ liệu - Chìa khóa để định lượng chất lượng
+
+Để biến những nhận xét cảm tính thành toán học, chúng ta sử dụng khái niệm **Phân phối dữ liệu (Data Distribution)**. Thay vì hỏi *Ảnh con chó này đẹp không?*, chúng ta hãy hỏi: 
+*Xác suất để chúng ta lấy được mẫu ảnh là con chó là bao nhiêu?*
+
+Lúc này, thang đo chất lượng được chuyển đổi sang thang đo **Xác suất**:
+
+*   **Ảnh nhiễu:** Xác suất xuất hiện là **Bất khả thi**. Bạn sẽ không bao giờ tìm thấy một tấm ảnh nhiễu tự nhiên như vậy khi lấy mẫu ảnh chó.
+*   **Ảnh con phố:** Xác suất **Hiếm**. Có thể có ảnh con chó trên phố, nhưng nếu ảnh chỉ có phố không thì xác suất khớp với yêu cầu là rất thấp.
+*   **Ảnh con mèo:** Xác suất **Thấp**. Dù là ảnh động vật, nhưng nó không thuộc về tập hợp "ảnh chó".
+*   **Ảnh con chó:** Xác suất **Rất cao**. Đây chính xác là những gì phân phối dữ liệu của "chó" chứa đựng.
+
+
+### 3.3. Hàm mật độ xác suất
+
+Với mục đích biểu diễn thang đo xác suất đã nói ở mục **3.2**. Chúng ta sử dụng hàm **Mật độ xác suất (Probability Density)**, ký hiệu là $p_{\text{data}}$.
+Có 3 lý do chính tại sao chúng ta phải dùng khái niệm *Mật độ xác suất* thay vì chỉ dùng *Xác suất* thông thường hay một đại lượng nào khác:
+
+**Dữ liệu của chúng ta là Liên tục (Continuous):** Trong Deep learning, chúng ta hầu như luôn quy đổi giá trị điểm ảnh về dạng **số thực liên tục** (thường là `float32` trong khoảng $[0, 1]$ hoặc $[-1, 1]$). Do đó vector $z \in \mathbb{R}^d$. 
+*   Trong toán xác suất, đối với một biến liên tục, **xác suất tại một điểm chính xác bằng 0**. Ví dụ: Xác suất để chọn đúng một bức ảnh có chính xác 1.000.000 điểm ảnh với các giá trị số thực trùng khớp hoàn toàn đến tận số thập phân thứ 1 tỷ là cực kỳ nhỏ, tiến về 0.
+*   Vì vậy, chúng ta không thể nói *Xác suất của bức ảnh này là 0.5*. Thay vào đó, chúng ta dùng Mật độ xác suất. Nó cho biết vùng không gian nào *dày đặc* dữ liệu thật hơn vùng khác.
+
+**Không gian dữ liệu khổng lồ:**
+Giả sử bạn có một bức ảnh $$100 \times 100 $$ pixels (tổng cộng 10.000 chiều). Số lượng cách kết hợp các con số ngẫu nhiên để tạo ra một bức ảnh là vô tận.
+*   Tuy nhiên, hầu hết các cách kết hợp ngẫu nhiên chỉ tạo ra **nhiễu hạt (noise)** vô nghĩa.
+*   Những bức ảnh "có nghĩa" (như hình con chó, khuôn mặt người) chỉ chiếm một diện tích cực kỳ nhỏ, giống như những **hòn đảo** hoặc những **dãy núi cao** giữa một đại dương nhiễu hạt.
+*   **Mật độ xác suất $p(z)$** đóng vai trò là một "bản đồ độ cao":
+    *   Nơi nào có **mật độ cao (đỉnh núi)**: Đó là vùng chứa các vector $z$ trông giống "dữ liệu thật".
+    *   Nơi nào có **mật độ thấp (vực thẳm)**: Đó là vùng chứa các vector $z$ là nhiễu hoặc không có ý nghĩa.
+
+**Để máy tính có thể lấy mẫu:**
+Mục tiêu của chúng ta là tạo ra cái mới, nói cách khác lấy mẫu sao cho đối tượng được tạo ra có chất lượng và độ trung thực đúng với yêu cầu của Prompt đầu vào. Nếu không có mật độ xác suất, máy tính sẽ không biết phải chọn điểm nào trong không gian $d$ chiều khổng lồ đó.
+*   Khi có hàm mật độ $p(z)$, chúng ta ra lệnh cho máy tính: **Hãy chọn cho ta một điểm $z$ ở những vùng có mật độ xác suất cao**.
+*   Nếu mật độ xác suất được học chính xác, thì mỗi lần máy tính *lấy mẫu*, nó sẽ trả về một bức ảnh mới, khác biệt nhưng vẫn rất *thật*.
+
+
+
+## 4. Tổng quan về quá trình lấy mẫu
+
+### 4.1. Dữ liệu huấn luyện
+
+
+![Quá trình tạo sinh hình ảnh](src/content/images/diffusion/0002.png)
+
+Vì chúng ta không biết công thức của $p_{\text{data}}$, làm sao để huấn luyện AI? Câu trả lời nằm ở **Tập dữ liệu (Dataset)**.
+
+Để huấn luyện các thuật toán tạo sinh, chúng ta cần một lượng lớn các ví dụ thực tế. Những ví dụ này chính là những mẫu được lấy từ phân phối $p_{\text{data}}$ ngoài đời thực:
+
+*   **Hình ảnh:** Lấy từ kho ảnh khổng lồ trên Internet.
+*   **Video:** Lấy từ hàng tỷ giờ nội dung trên YouTube.
+
+
+Một tập dữ liệu bao gồm một số lượng hữu hạn ($N$) các mẫu được lấy ra từ phân phối dữ liệu gốc:
+$$
+z_1, z_2, \dots, z_N \sim p_{\text{data}}
+$$
+Trong đó, mỗi $z_i$ là một điểm dữ liệu thật (một bức ảnh thật, một video thật). 
+
+**Tóm lại**
+
+    1.  **Thực tế:** Có một phân phối lý tưởng $p_{\text{data}}$ (nhưng ta không biết công thức).
+    2.  **Dữ liệu:** Ta có một tập hợp các mẫu hữu hạn $\{z_1, \dots, z_N\}$ từ phân phối đó.
+    3.  **Nhiệm vụ của AI:** Từ những mẫu hữu hạn này, mô hình phải *học* để hiểu được hình dạng của phân phối $p_{\text{data}}$ ẩn giấu phía sau. 
+    4.  **Mục tiêu cuối cùng:** Sau khi học xong, mô hình có thể tự mình thực hiện phép lấy mẫu $z \sim p_{\text{data}}$ để tạo ra những dữ liệu **mới hoàn toàn** nhưng vẫn mang đặc điểm của dữ liệu thật.
+
+
+
+### 4.2. Phân phối khởi đầu
+
+Khi đã có dữ liệu huấn luyện, làm thế nào mà chúng ta có thể huấn luyện tham số mô hình $\theta$ để có thể mô phỏng gần chính xác Phân phối dữ liệu thực tế. Các nhà khoa học đã nghĩ ra một *đường vòng* thông minh: 
+*   1. Sử dụng phân phối dữ liệu cực kỳ đơn giản. 
+*   2. Từ phân phối đơn giản đó, sau đó tìm đường để biến đổi thành Phân phối dữ liệu thực tế.
+
+
+Để bắt đầu quá trình tạo ra một thứ gì đó, mô hình cần một nguồn *ngẫu nhiên*. Chúng ta gọi đó là phân phối khởi đầu $p_{\text{init}}$. Chúng ta chọn **Phân phối Chuẩn - Gaussian:** 
+$$
+p_{\text{init}} = \mathcal{N}(0, I_d)
+$$ 
+
+**Tại sao lại là Phân phối chuẩn - Gaussian**
+
+Việc chọn **Phân phối Chuẩn** làm điểm khởi đầu (và cũng là điểm kết thúc của quá trình làm nhiễu) trong các mô hình Diffusion không phải là ngẫu nhiên. Có 4 lý do cực kỳ quan trọng về mặt toán học và thực tế:
+
+*   **Tính ổn định khi cộng dồn:**
+        *   Đây là lý do kỹ thuật quan trọng nhất. Phân phối Gaussian có một tính chất đặc biệt là **Tổng của hai biến ngẫu nhiên Gaussian cũng là một biến ngẫu nhiên Gaussian.**
+        *   Trong mô hình Diffusion, chúng ta thêm nhiễu từng bước một ($t=1, t=2, \dots, t=T$). 
+        *   Nhờ tính chất này, thay vì phải đi qua từng bước, chúng ta có một công thức toán học (gọi là *Reparameterization trick*) để tính ngay lập tức trạng thái dữ liệu ở bước thứ 1000 từ ảnh gốc mà không cần chạy qua 999 bước trước đó.
+        *   Nếu bạn chọn một phân phối khác (như phân phối Đều - Uniform), việc cộng dồn nhiễu qua nhiều bước sẽ làm hình dạng phân phối thay đổi liên tục, khiến việc tính toán trở nên cực kỳ hỗn loạn.
+
+*   **Định lý Giới hạn Trung tâm (Central Limit Theorem):**
+    *   Định lý này phát biểu rằng: Khi bạn cộng rất nhiều biến ngẫu nhiên độc lập lại với nhau (bất kể chúng thuộc phân phối nào ban đầu), kết quả cuối cùng sẽ hội tụ về **Phân phối Chuẩn**.
+    *   Khi chúng ta thêm nhiễu vào một bức ảnh qua hàng ngàn bước nhỏ, bức ảnh đó chắc chắn sẽ biến thành một khối nhiễu Gaussian, bất kể ban đầu nó là ảnh con chó, con mèo hay phong cảnh.
+    *   Vì mọi dữ liệu trên đời khi bị phá hủy đủ lâu đều "về chung một nhà" là Gaussian, nên việc chúng ta bắt đầu quá trình tạo sinh (khử nhiễu) từ Gaussian là cách tiếp cận **tổng quát nhất**.
+
+*   **Entropy tối đa (Tính ngẫu nhiên tuyệt đối)**
+    *   Trong lý thuyết thông tin, với một giá trị phương sai (độ biến động) cố định, phân phối Gaussian là phân phối có **Entropy lớn nhất**.
+    *   Entropy lớn nhất nghĩa là nó chứa **ít thông tin cấu trúc nhất**. Nó là trạng thái *hỗn độn* nhất có thể.
+    *   Việc bắt đầu từ trạng thái không có chút thông tin nào (Maximum Entropy) đảm bảo rằng mô hình AI sẽ phải tự học cách xây dựng lại toàn bộ cấu trúc dữ liệu từ con số 0, giúp nó có khả năng sáng tạo ra những mẫu dữ liệu đa dạng và mới mẻ.
+
+*   **Công thức đạo hàm đẹp**
+
+    *    Hàm mật độ xác suất $p(x)$ của Phân phối chuẩn được viết là:
+        $$
+        p(x) = \frac{1}{(2\pi \sigma^2)^{d/2}} \exp \left( -\frac{\|x - \mu\|^2}{2\sigma^2} \right)
+        $$
+
+    *   Trong đó:
+        *   $\mu$: Vector trung bình (mục tiêu hoặc ảnh gốc).
+        *   $\|x - \mu\|^2$: Bình phương khoảng cách Euclid (tổng bình phương sai lệch giữa các pixel).
+        *   $d$: Số chiều của dữ liệu (tổng số pixel).
+
+    *   Chuyển sang không gian Log (Log-Likelihood). Việc lấy log giúp biến phép nhân/chia và hàm mũ phức tạp thành các phép cộng/trừ đơn giản.
+        $$
+        \log p(x) = \log \left( \frac{1}{(2\pi \sigma^2)^{d/2}} \right) + \log \left( \exp \left( -\frac{\|x - \mu\|^2}{2\sigma^2} \right) \right)
+        $$
+
+    *   Sử dụng tính chất $\log(e^A) = A$ và tách phần hằng số:
+        $$
+        \log p(x) = \underbrace{-\frac{d}{2} \log(2\pi \sigma^2)}_{\text{Hằng số } C} - \frac{\|x - \mu\|^2}{2\sigma^2}
+        $$
+
+
+
+
+    *   Bây giờ, chúng ta tính đạo hàm riêng (gradient) theo vector $x$. Ký hiệu là $\nabla_x$.
+        $$
+        \nabla_x \log p(x) = \nabla_x \left( C \right) - \nabla_x \left( \frac{\|x - \mu\|^2}{2\sigma^2} \right)
+        $$
+
+    *   Đạo hàm của hằng số $C$ theo $x$ bằng **0**.
+        Sử dụng quy tắc đạo hàm vector: 
+        $$
+        \nabla_x \|x - \mu\|^2 = 2(x - \mu)
+        $$
+
+    *   Cuối cùng ta được:
+        $$
+        \nabla_x \log p(x) = 0 - \frac{1}{2\sigma^2} \cdot 2(x - \mu) = -\frac{x - \mu}{\sigma^2}
+        $$
+
+
+
+
+### 4.3. Định lý về Sự tồn tại và Tính duy nhất của nghiệm ODE
+
+Mô hình tạo sinh là một bộ máy biến đổi *nhiễu* thành *dữ liệu thật*, câu hỏi tiếp theo là: **Làm thế nào để sự biến đổi đó diễn ra một cách mượt mà và ổn định?**
+Một trong những cách tiếp cận hiện đại nhất là *Flow Matching*, coi quá trình tạo sinh như một **dòng chảy (flow)** liên tục theo thời gian.
+
+
+Khi chúng ta mô tả sự thay đổi của đối tượng theo thời gian, chúng ta sử dụng **Phương trình vi phân thường (Ordinary Differential Equation - ODE)**.
+
+#### 4.3.1. Các thành phần của phương trình
+Hãy tưởng tượng điểm dữ liệu của bạn là một con thuyền đang trôi trên dòng sông:
+*   $X_0 = x_0$: Đây là **điểm xuất phát** (khối nhiễu ban đầu lúc $t=0$).
+*   $u_t(x)$: Đây được gọi là **trường vector (vector field)**. Bạn hãy tưởng tượng nó như những mũi tên chỉ hướng dòng nước tại mỗi vị trí $x$ và thời điểm $t$. Trong AI, đây chính là **mạng nơ-ron** mà chúng ta huấn luyện để chỉ đường cho dữ liệu.
+*   Phương trình này nói rằng *vận tốc* thay đổi vị trí của điểm dữ liệu ($X_t$) chính bằng chỉ dẫn của trường vector tại vị trí đó:
+    $$
+    \frac{\mathrm{d}}{\mathrm{d}t}X_t = u_t(X_t)
+    $$ 
+
+#### 4.3.2. Định lý Picard–Lindelöf là gì?
+
+Định lý này đưa ra các điều kiện để quá trình "trôi" của dữ liệu không bị lỗi.
+
+**Điều kiện cần:** 
+Trường vector $u_t(x)$ phải "mượt mà" (continuously differentiable) và không thay đổi quá đột ngột (**Lipschitz continuous**). 
+*   *Hiểu đơn giản:* Nếu bạn nhích vị trí $x$ một chút, thì vector vận tốc $u_t(x)$ cũng chỉ được phép thay đổi một chút, không được phép *nhảy vọt* hỗn loạn.
+
+**Kết quả thu được:**
+Nếu thỏa mãn điều kiện trên, định lý đảm bảo 2 thứ cực kỳ quý giá:
+1.  **Sự tồn tại (Existence):** Luôn tồn tại một con đường dẫn từ nhiễu $x_0$ đến kết quả cuối cùng. Bạn không bao giờ bị *kẹt* giữa chừng.
+2.  **Tính duy nhất (Uniqueness):** Con đường đó là **duy nhất**. Hai lộ trình xuất phát từ cùng một điểm nhiễu sẽ không bao giờ giao nhau hoặc tách rời nhau một cách vô lý.
+
+
+**Tại sao định lý này lại "sống còn" đối với Machine Learning**
+
+*   **Tính xác định (Determinism):**
+Nhờ tính *duy nhất*, nếu bạn giữ nguyên *seed* là khối nhiễu $x_0$, mô hình sẽ luôn tạo ra cùng một bức ảnh duy nhất. Điều này cực kỳ quan trọng để kiểm soát chất lượng và tái lập kết quả.
+
+*   **Khả năng đảo ngược (Reversibility):**
+Vì lộ trình là một dòng chảy (flow) mượt mà và duy nhất, chúng ta có thể chạy ODE theo chiều ngược lại (từ $t=1$ về $t=0$). 
+
+*   **Ứng dụng:** Bạn đưa một bức ảnh thật vào, AI có thể tìm ngược lại chính xác khối nhiễu nào đã tạo ra nó. Điều này cho phép chúng ta chỉnh sửa ảnh một cách tinh vi (ví dụ: lấy khối nhiễu của ảnh một người, nhích nhẹ tọa độ để đổi màu tóc, rồi chạy xuôi lại để ra ảnh mới).
+
+*   **Sự ổn định của mô hình (Stability):**
+Điều kiện **Lipschitz** buộc mạng nơ-ron phải học những quy luật mượt mà. Nếu không có điều kiện này, chỉ cần nhiễu đầu vào thay đổi một hạt cát, kết quả đầu ra có thể biến từ con chó thành con mèo (hiện tượng không ổn định). Các mô hình như **Flow Matching** dựa hoàn toàn vào việc duy trì tính chất này.
+
+*   **Flow Map:**
+Định lý xác nhận sự tồn tại của một *Flow map* — một hàm số toán học biến đổi toàn bộ không gian nhiễu thành không gian dữ liệu thật mà không làm rách hay chồng chéo không gian đó. Nó giống như việc bạn nặn một miếng đất sét từ hình tròn thành hình bông hoa một cách liên tục mà không làm đứt gãy nó.
+
+
+## 5. Ví dụ về flow matching
+
+Để cụ thể hóa định lý Picard–Lindelöf vừa học, chúng ta hãy cùng xem xét một ví dụ toán học đơn giản nhất nhưng lại cực kỳ quan trọng để hiểu cách dữ liệu "di chuyển" trong không gian: ODE Tuyến tính.
+
+
+### 5.1. Thiết lập trường vector
+
+Giả sử chúng ta có một trường vector cực kỳ đơn giản:
+$$
+u_t(x) = -\theta x \quad (\theta > 0)
+$$
+
+**Ý nghĩa vật lý:** Bạn hãy tưởng tượng đây là một *lực hút* luôn kéo mọi điểm về gốc tọa độ (vị trí 0). 
+* Nếu $x$ đang dương, vận tốc sẽ âm (kéo về trái). 
+* Nếu $x$ đang âm, vận tốc sẽ dương (kéo về phải). 
+* Càng xa số 0, "lực kéo" càng mạnh.
+
+
+### 5.2. Tìm kiếm lộ trình di chuyển
+
+Câu hỏi đặt ra là: Nếu ta thả một hạt bụi tại vị trí $x_0$, sau thời gian $t$, nó sẽ ở đâu? 
+Lý thuyết khẳng định rằng "lộ trình" (Flow) sẽ tuân theo hàm số:
+$$
+\psi_t(x_0) = \exp(-\theta t) x_0
+$$
+
+Đây là một hàm **suy giảm mũ**. Khi thời gian $t$ trôi qua, vị trí của hạt bụi sẽ tiến dần về 0 nhưng không bao giờ vượt quá nó.
+
+
+### 5.3. Chứng minh
+
+Để kiểm tra xem hàm số trên có đúng là nghiệm của hệ thống không, ta thực hiện 2 bước kiểm tra:
+
+1. **Điều kiện đầu (Initial condition):** Tại thời điểm $t=0$, hạt bụi phải ở đúng vị trí xuất phát.
+   $$\psi_{t=0}(x_0) = \exp(0) \cdot x_0 = 1 \cdot x_0 = x_0$$
+   $\rightarrow$ **Thỏa mãn.**
+
+2. **Kiểm tra phương trình vi phân (ODE):** Đạo hàm của vị trí theo thời gian có đúng bằng trường vector chỉ định không?
+   * Ta tính đạo hàm của $\psi_t(x_0)$ theo $t$: 
+     $$
+     \frac{\mathrm{d}}{\mathrm{d}t} \psi_t(x_0) = \frac{\mathrm{d}}{\mathrm{d}t} (\exp(-\theta t) x_0) = -\theta \cdot \exp(-\theta t) x_0
+     $$
+   * Mà $\psi_t(x_0) = \exp(-\theta t) x_0$ chính là vị trí tại thời điểm $t$. 
+   * Vậy: $\frac{\mathrm{d}}{\mathrm{d}t} \psi_t(x_0) = -\theta \cdot \psi_t(x_0)$.
+   $\rightarrow$ Kết quả này khớp hoàn toàn với định nghĩa $u_t(x) = -\theta x$.
+
+---
+
+### 5.4. Sự hội tụ - đi về đúng đích
+
+<img
+  src="/src/content/images/diffusion/0003.png"
+  alt="Các điểm dữ liệu di chuyển về phía tọa độ gốc theo thời gian t"
+  style={{
+    width: "50%",
+    maxWidth: "400px",
+    display: "block",
+    margin: "0 auto"
+  }}
+/>
+
+
+Nhìn vào đồ thị trên, mỗi đường màu là một lộ trình xuất phát từ các giá trị $x_0$ khác nhau:
+* Dù bạn bắt đầu ở rất cao ($x=10$) hay rất thấp ($x=-10$), trường vector này đều hướng dẫn tất cả các điểm **hội tụ về trục 0**.
+* Đây chính là một ví dụ sơ khai của quá trình tạo sinh: Bạn bắt đầu từ rất nhiều điểm "nhiễu" khác nhau (các giá trị $x_0$), và thông qua một trường vector được thiết kế tốt, tất cả chúng đều được đưa về một vùng không gian mong muốn (trong ví dụ này là điểm 0).
+
+Trong các mô hình thực tế như **Flow Matching**, mạng nơ-ron của chúng ta không học hàm đơn giản $-\theta x$ này. Nó học một trường vector $u_t(x)$ cực kỳ phức tạp để thay vì kéo mọi thứ về số 0, nó sẽ kéo các khối nhiễu về phía *vùng dữ liệu thật* (nơi chứa ảnh chó, mèo, v.v.). 
+Nguyên lý di chuyển theo dòng chảy (Flow) vẫn y hệt như ví dụ trên: **Mượt mà, xác định và luôn đi tới đích.**

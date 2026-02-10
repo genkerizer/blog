@@ -1,0 +1,214 @@
+---
+title: "Advanced Prompting Techiques - Part 2"
+description: "Nối tiếp Advanced Prompting Techiques - Part 1 chúng ta sẽ tìm hiểu các kỹ thuật mới như Decomposed Prompting, Self-refinement."
+pubDate: 2025-12-05
+author: "hopny"
+category: "LLM"
+tags: ["prompting", "llm", "nlp"]
+image: ""
+---
+
+## 1. Decomposed Prompting
+
+### 1.1 Nguồn gốc
+
+Phương pháp **Decomposed Prompting** được giới thiệu chính thức trong bài báo khoa học `Decomposed Prompting: A Modular Approach for Solving Complex Tasks` bởi Khot et al. (2022).
+
+Nó ra đời nhằm giải quyết hạn chế của phương pháp `Chain-of-Thought (CoT)`. Trong khi CoT cố gắng giải quyết toàn bộ vấn đề trong một ngữ cảnh (context) duy nhất, thì Decomposed Prompting nhận ra rằng việc dồn quá nhiều bước suy luận vào một lần gọi mô hình có thể khiến mô hình bị "quên" hoặc rối loạn đối với các tác vụ quá phức tạp.
+
+### 1.2. Ý tưởng cốt lõi
+
+Ý tưởng chính là **Chia để trị (Divide and Conquer)**.
+Thay vì dạy mô hình giải quyết một bài toán lớn từ đầu đến cuối, phương pháp này:
+1.  Phân rã (Decompose) bài toán phức tạp thành các bài toán con (sub-tasks) đơn giản hơn.
+2.  Xây dựng thư viện các prompt chuyên biệt (specialized sub-prompts) cho từng loại bài toán con đó.
+3.  Sử dụng bộ điều phối để gọi tuần tự các prompt con này.
+
+
+### 1.3. Cơ sở Toán học (Mathematics)
+Giả sử ta cần mô hình hóa xác suất $P(y|x)$ để tìm ra kết quả $y$ từ đầu vào $x$.
+
+*   **Chain-of-Thought:** Cố gắng sinh ra chuỗi suy luận $z$ sao cho: 
+    $$
+    P(y|x) = P(y|z,x)P(z|x)
+    $$
+*   **Decomposed Prompting:**
+    Coi bài toán là một hàm hợp (function composition). Ta phân rã hàm $F(x)$ thành chuỗi các hàm con $f_1, f_2, ..., f_k$.
+    Khi đó kết quả $y$ được tính bằng cách:
+    $$
+    y = f_k(f_{k-1}(...f_1(x)...))
+    $$
+
+    Trong đó, mỗi hàm $f_i$ là một **module** riêng biệt (có thể là một lần gọi LLM với prompt riêng, hoặc một công cụ python, máy tính...). Hệ thống học cách xác định cấu trúc phân rã (cây phân rã) để biết cần gọi hàm nào theo thứ tự nào.
+
+### 1.4. Ví dụ minh họa
+
+Hãy xem xét yêu cầu sau: **Hãy nối ký tự cuối cùng của các từ trong cụm "Elon Musk" lại với nhau.**
+
+*   **Cách làm thông thường (Standard/CoT):** Mô hình cố gắng tự nhẩm và in ra kết quả. Có thể sai nếu chuỗi quá dài.
+*   **Cách làm Decomposed Prompting:**
+    *   Hệ thống sẽ có các module: 
+        *   `SplitString` (Tách chuỗi).
+        *   `LastLetter` (Lấy chữ cái cuối).
+        *   `Concatenate` (Nối chuỗi).
+
+    *   **Bước 1:** Gọi `SplitString`, Tách "Elon Musk" $\to$ ["Elon", "Musk"].
+    *   **Bước 2:** Gọi module `LastLetter` cho phần tử 1. Prompt chuyên biệt: Lấy ký tự cuối của `Elon` $\to$ Trả về `n`.
+    *   **Bước 3:** Gọi module `LastLetter` cho phần tử 2. Prompt chuyên biệt: Lấy ký tự cuối của `Musk` $\to$ Trả về `k`.
+    *   **Bước 4:** Gọi module `Concatenate`. Prompt chuyên biệt: Nối `n` và `k` $\to$ Kết quả: `nk`.
+
+**Ví dụ trong thực tế**: Có sử dụng `Công cụ tìm kiếm`.
+*   Câu hỏi: Ai là vợ của tổng thống Mỹ hiện tại?
+    *   1. Module Search: "Tổng thống Mỹ hiện tại là ai?" $\to$ Joe Biden.
+    *   2. Module Search: "Vợ của Joe Biden là ai?" $\to$ Jill Biden.
+    *   3. Trả về kết quả cuối cùng.
+
+### 1.5. Ưu và Nhược điểm
+
+**Ưu điểm:**
+*   **Tính Module hóa:** Có thể tái sử dụng các prompt con cho nhiều bài toán khác nhau.
+*   **Khả năng mở rộng:** Dễ dàng tích hợp các công cụ bên ngoài như Google Search, Python REPL, Máy tính vào quy trình.
+*   **Xử lý quy trình phức tạp:** Giải quyết tốt các bài toán đa bước mà một prompt duy nhất không thể xử lý nổi (do giới hạn token hoặc khả năng suy luận).
+*   **Dễ Debug:** Nếu sai, ta biết chính xác sai ở bước nào (module nào) để sửa prompt cho module đó.
+
+**Nhược điểm:**
+*   **Chi phí và độ trễ:** Phải gọi API/Model nhiều lần cho một câu hỏi (mỗi bước là một lần gọi), tốn kém token và thời gian phản hồi lâu hơn.
+*   **Lan truyền lỗi:** Nếu bước phân rã đầu tiên sai, hoặc một bước trung gian sai, toàn bộ kết quả sau đó sẽ sai theo.
+*   **Độ phức tạp khi thiết kế:** Cần phải thiết kế bộ `Decomposer` thông minh và xây dựng thư viện các prompt con (sub-prompts) hiệu quả.
+
+---
+
+## 2. Self-refinement
+### 2.1. Nguồn gốc
+Phương pháp **Self-refinement** (Tự tinh chỉnh) được biết đến qua nghiên cứu `Self-Refine: Iterative Refinement with Self-Feedback`.
+Xuất phát từ quan sát rằng: Các mô hình ngôn ngữ lớn (LLM) giống như con người, thường không đưa ra câu trả lời hoàn hảo ngay lần đầu tiên, 
+nhưng chúng có khả năng tự nhận ra lỗi sai của mình và sửa chữa nếu được yêu cầu xem lại. 
+Thay vì cần con người đánh giá (Human-in-the-loop), mô hình tự đóng vai người đánh giá.
+
+### 2.2. Ý tưởng cốt lõi
+Ý tưởng chính là **"Vòng lặp Cải tiến" (Iterative Improvement loop)**.
+Quy trình hoạt động như một cuộc hội thoại nội tâm của mô hình, bao gồm 3 vai trò luân phiên:
+1.  **Người thực hiện (Generator):** Tạo ra bản nháp đầu tiên.
+2.  **Người phê bình (Critic):** Đọc bản nháp, tìm lỗi, nhận xét về phong cách, độ chính xác hoặc tính an toàn (Feedback).
+3.  **Người biên tập (Refiner):** Dựa trên nhận xét để viết lại bản nháp tốt hơn.
+
+Quy trình này lặp đi lặp lại `Generate` $\to$ `Critique` $\to$ `Revise` $\to$ `Repeat` cho đến khi đạt tiêu chuẩn.
+
+### 2.3. Cơ sở Toán học
+Giả sử ta có đầu vào $x$ (prompt). Mục tiêu là tạo ra kết quả $y$.
+
+*   **Prompting thông thường (Standard):** $y = P(y|x)$.
+*   **Self-refinement (Quy trình lặp):**
+    Quy trình diễn ra qua các bước thời gian $t = 0, 1, 2...$
+
+    1.  **Khởi tạo ($t=0$):**
+        $$y_0 \sim P_{\text{gen}}(y|x)$$
+        *(Tạo bản nháp đầu tiên)*
+
+    2.  **Vòng lặp ($t$):**
+        *   **Bước Phê bình (Critique):** Tạo ra phản hồi $fb_t$ dựa trên đầu ra hiện tại:
+            $$fb_t \sim P_{\text{critique}}(fb|x, y_t)$$
+        *   **Bước Tinh chỉnh (Revise):** Tạo ra đầu ra mới dựa trên đầu ra cũ và phản hồi:
+            $$y_{t+1} \sim P_{\text{refine}}(y|x, y_t, fb_t)$$
+
+    3.  **Điều kiện dừng:** Khi $fb_t$ chỉ ra rằng không còn lỗi hoặc đạt số vòng lặp tối đa.
+
+### 2.4. Ví dụ minh họa
+**Bài toán:** Viết code Python để giải phương trình bậc 2, nhưng yêu cầu code phải xử lý ngoại lệ (exceptions) tốt.
+
+*   **Vòng 1 (Generate):**
+    *   *Output $y_0$:* Mô hình viết code tính delta và trả về nghiệm.
+*   **Vòng 1 (Critique):**
+    *   *Prompt:* Hãy xem code trên có lỗi gì không? Có xử lý trường hợp `a=0` không?
+    *   *Feedback $fb_0$:* Code thiếu kiểm tra `a=0` (khi đó không phải phương trình bậc 2) và chưa xử lý trường hợp delta âm (nghiệm phức).
+*   **Vòng 1 (Revise):**
+    *   *Output $y_1$:* Mô hình viết lại code, thêm `if a == 0: raise ValueError...` và xử lý số phức.
+*   **Kết quả:** Code hoàn thiện hơn nhiều so với lần đầu.
+
+### 2.5. Ưu và Nhược điểm
+
+**Ưu điểm:**
+*   **Chất lượng cao hơn:** Phù hợp cho các tác vụ đòi hỏi sự hoàn thiện như *Viết lách*, *Lập trình (Code generation)...*
+*   **Tự sửa lỗi (Debugging):** Mô hình có thể tự phát hiện ra lỗi logic hoặc cú pháp của chính mình mà không cần con người can thiệp.
+*   **Không cần dữ liệu huấn luyện thêm:** Không cần fine-tune lại mô hình, chỉ cần thiết kế prompt.
+
+**Nhược điểm:**
+*   **Độ trễ và Chi phí:** Vì phải chạy vòng lặp `Generate + Critique + Revise`, số lượng token tiêu thụ tăng gấp 3-4 lần, thời gian trả về kết quả lâu hơn.
+*   **Yêu cầu mô hình thông minh:** Chỉ hoạt động tốt trên các mô hình mạnh (như GPT-5, Claude 4.5). Các mô hình yếu thường không đủ khả năng để `tự phê bình` (không nhận ra mình sai ở đâu).
+*   **Vòng lặp luẩn quẩn:** Đôi khi mô hình sửa đi sửa lại nhưng kết quả không tốt hơn, hoặc thậm chí sửa từ đúng thành sai do ảo giác (hallucination) trong bước Critique.
+
+---
+
+
+## 3. Reflexion
+
+### 3.1. Nguồn gốc
+Phương pháp **Reflexion** được giới thiệu trong bài báo `Reflexion: Language Agents with Verbal Reinforcement Learning`
+
+Các tác giả nhận thấy rằng các phương pháp Học tăng cường (Reinforcement Learning - RL) truyền thống (như PPO) yêu cầu cập nhật trọng số mô hình rất tốn kém và phức tạp. 
+Reflexion ra đời như một sự thay thế nhẹ nhàng hơn: thay vì cập nhật trọng số để huấn luyện, ta dùng `ngôn ngữ (verbal feedback)` để tự điều chỉnh hành vi.
+
+### 3.2. Ý tưởng
+Ý tưởng chính là **Học từ sai lầm thông qua suy ngẫm (Learning from mistakes via reflection)**.
+
+Thay vì chỉ thử đi thử lại một cách mù quáng, hệ thống hoạt động giống con người khi gặp thất bại:
+1.  **Hành động (Actor):** Thực hiện một tác vụ.
+2.  **Đánh giá (Evaluator):** Xem kết quả đúng hay sai.
+3.  **Suy ngẫm (Self-Reflection):** Nếu sai, mô hình tự hỏi: Tại sao mình sai? Lần sau phải làm gì khác đi? Câu trả lời (dạng văn bản) được lưu vào bộ nhớ.
+4.  **Thử lại (Repeat):** Ở lần thử tiếp theo, mô hình đọc lại kinh nghiệm xương máu trong bộ nhớ để không mắc lại lỗi cũ.
+
+Điểm mấu chốt được nhấn mạnh trong hình là: **without weight updates**. 
+Mô hình học hỏi ngay trong quá trình chạy (inference time) bằng cách cập nhật ngữ cảnh (context/prompt) chứ không phải thay đổi tham số mô hình.
+
+### 3.1. Cơ sở cùa Reflexion
+Sự khác biệt lớn nhất nằm ở cách tối ưu hóa chính sách hành động (Policy).
+
+*   **Học tăng cường (RL):**
+    Tìm cách tối ưu tham số $\theta$ của mô hình để tối đa hóa phần thưởng $r$:
+    $$ 
+    \theta_{t+1} \leftarrow \text{Optimizer}(\theta_t, r_t) 
+    $$
+
+*   **Reflexion (Verbal RL):**
+    Giữ nguyên tham số $\theta$. Thay vào đó, ta tối ưu hóa bộ nhớ đệm (context) $M$.
+    Gọi $a_t$ là hành động tại bước $t$, $o_t$ là kết quả quan sát.
+    Nếu thất bại, mô hình sinh ra một chuỗi văn bản suy ngẫm $sr_t$ (self-reflection):
+    $$ 
+    sr_t = \text{LLM}(a_t, o_t, \text{"Tại sao sai?"}) 
+    $$
+    Sau đó cập nhật bộ nhớ:
+    $$ 
+    M_{t+1} = M_t \cup \{sr_t\} 
+    $$
+    Hành động tiếp theo sẽ phụ thuộc vào bộ nhớ này:
+    $$ 
+    a_{t+1} \sim P(a | \text{context}, M_{t+1}) 
+    $$
+    Điều đó nghĩa là chúng ta thay đổi thông tin đầu vào để mô hình xử lý tốt hơn.
+
+### 4.4. Ví dụ minh họa
+**Bài toán:** Viết hàm Python để tìm số lớn thứ hai trong danh sách, nhưng danh sách có thể chứa các số trùng nhau.
+
+*   **Lần thử 1 (Thất bại):**
+    *   *Code:* Sắp xếp danh sách `list.sort()` rồi lấy phần tử `list[-2]`.
+    *   *Kết quả:* Sai với input `[1, 2, 5, 5]`. Code trả về `5`, nhưng đáp án phải là `2`, Vấn đề này xảy ra vì có các phần tử trùng nhau.
+*   **Reflexion (Suy ngẫm):**
+    *   *Mô hình tự nhận xét:* "Cách làm `list[-2]` bị sai khi danh sách có các phần tử trùng nhau ở cuối. Tôi cần loại bỏ trùng lặp bằng `set()` trước khi sắp xếp."
+    *   *Lưu vào bộ nhớ:* "Nhớ dùng set để loại bỏ các phần tử trùng nhau."
+*   **Lần thử 2 (Thành công):**
+    *   *Input context:* Đề bài + "Nhớ dùng set để deduplicate."
+    *   *Code mới:* `sorted(list(set(nums)))[-2]`
+    *   *Kết quả:* Trả về `2`.
+
+### 4.5. Ưu và Nhược điểm
+
+**Ưu điểm:**
+*   **Không cần huấn luyện (No Training):** Tiết kiệm chi phí tính toán khổng lồ so với việc Fine-tuning hay RLHF.
+*   **Học nhanh (Few-shot learning):** Có thể sửa lỗi ngay lập tức chỉ sau một vài lần thử trong cùng một phiên làm việc.
+*   **Dễ hiểu (Interpretable):** Vì "suy ngẫm" là văn bản, con người có thể đọc và hiểu tại sao mô hình lại thay đổi quyết định (khác với "hộp đen" của mạng nơ-ron).
+*   **Hiệu quả với các tác vụ phức tạp:** Đặc biệt tốt cho Lập trình (Coding) hoặc Lập kế hoạch (Planning) nơi lỗi sai thường cụ thể và logic.
+
+**Nhược điểm:**
+*   **Giới hạn bộ nhớ (Context Window):** Nếu thử sai quá nhiều lần, bộ nhớ chứa các lời "suy ngẫm" sẽ bị đầy, làm tràn ngữ cảnh của LLM.
+*   **Phụ thuộc vào khả năng tự đánh giá:** Nếu mô hình không đủ thông minh để biết tại sao nó sai, nó có thể đưa ra lời khuyên sai lầm, dẫn đến việc sửa từ sai thành sai hơn.
+*   **Tăng độ trễ:** Quy trình Thử $\to$ Sai $\to$ Nghĩ $\to$ Thử lại tốn thời gian hơn nhiều so với việc trả lời ngay lập tức.
